@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { CapacitorUpdater } from '@capgo/capacitor-updater';
 
-const API_KEY = '2e462852d8a74a1474c39e45c77bb024';
+const API_KEY = import.meta.env.VITE_TMDB_API_KEY || '2e462852d8a74a1474c39e45c77bb024';
 const DISCOVER_URL = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=ar-SA&sort_by=popularity.desc`;
 const SEARCH_URL = `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&language=ar-SA&query=`;
 const GENRES_URL = `https://api.themoviedb.org/3/genre/movie/list?api_key=${API_KEY}&language=ar-SA`;
@@ -29,8 +30,10 @@ export default function App() {
   const [collectionMovies, setCollectionMovies] = useState([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
-  // جلب الفئات عند البداية
+  // إبلاغ Capgo وجلب الفئات عند بداية التشغيل
   useEffect(() => {
+    CapacitorUpdater.notifyAppReady();
+
     fetch(GENRES_URL)
       .then((res) => res.json())
       .then((data) => setGenres(data.genres || []))
