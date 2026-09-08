@@ -15,7 +15,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install Dependencies
         run: |
@@ -32,4 +32,4 @@ jobs:
         run: npx @capacitor/cli sync android
 
       - name: Deploy to Capgo OTA
-        run: npx @capgo/cli@latest upload -a ${{ secrets.CAPGO_TOKEN }}
+        run: npx @capgo/cli bundle upload -a ${{ secrets.CAPGO_TOKEN }}
