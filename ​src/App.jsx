@@ -30,16 +30,20 @@ export default function App() {
   const [collectionMovies, setCollectionMovies] = useState([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
-  // إدارة التحديثات وتأكيد جاهزية التطبيق
+  // إدارة التحديثات الحية وتأكيد الجاهزية
   useEffect(() => {
-    async function initOTA() {
+    async function handleAutoUpdate() {
       try {
         await CapacitorUpdater.notifyAppReady();
-      } catch (e) {
-        console.error('Capgo init error:', e);
+        const version = await CapacitorUpdater.download();
+        if (version) {
+          await CapacitorUpdater.set(version);
+        }
+      } catch (err) {
+        console.log('OTA update check:', err);
       }
     }
-    initOTA();
+    handleAutoUpdate();
 
     fetch(GENRES_URL)
       .then((res) => res.json())
