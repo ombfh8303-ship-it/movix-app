@@ -18,7 +18,9 @@ jobs:
           node-version: 18
 
       - name: Install Dependencies
-        run: npm install
+        run: |
+          npm install
+          npm install @capacitor/android
 
       - name: Build Web Assets
         run: npm run build
