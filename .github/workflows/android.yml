@@ -1,4 +1,4 @@
-Name: Build Android and Upload Capgo OTA
+name: Build Android and Upload Capgo OTA
 
 on:
   push:
