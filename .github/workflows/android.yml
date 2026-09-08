@@ -35,7 +35,7 @@ jobs:
           npm install @capacitor/core @capacitor/cli @capacitor/android
           rm -rf android
           npx cap add android
-          npx cap copy android
+          npx cap sync android
 
       - name: Fix Kotlin Resolution Strategy
         run: |
@@ -43,7 +43,6 @@ jobs:
           echo "android.enableJetifier=true" >> gradle.properties
           echo "android.useAndroidX=true" >> gradle.properties
           
-          # Force resolution strategy in root build.gradle to fix Kotlin conflicts
           cat << 'EOF' >> build.gradle
 
           subprojects {
