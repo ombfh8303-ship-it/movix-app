@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Install Dependencies
         run: npm install
@@ -36,7 +36,7 @@ jobs:
           npx cap add android || true
           npx cap copy android
 
-      - name: Clean Gradle Cache & Build APK
+      - name: Build APK with Gradle
         run: |
           cd android
           rm -rf ~/.gradle/caches/
