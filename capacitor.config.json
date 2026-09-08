@@ -2,7 +2,9 @@
   "appId": "com.movix.app",
   "appName": "Movix",
   "webDir": "dist",
-  "server": {
-    "androidScheme": "https"
+  "plugins": {
+    "CapacitorUpdater": {
+      "autoUpdate": true
+    }
   }
 }
