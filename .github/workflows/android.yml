@@ -23,8 +23,11 @@ jobs:
       - name: Build Web Assets
         run: npm run build
 
+      - name: Add Android Platform
+        run: npx cap add android || true
+
       - name: Capacitor Sync
-        run: npx @capacitor/cli sync android
+        run: npx cap sync android
 
       - name: Deploy to Capgo OTA
         run: npx @capgo/cli@latest upload -a ${{ secrets.CAPGO_TOKEN }}
