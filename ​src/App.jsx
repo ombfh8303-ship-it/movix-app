@@ -30,9 +30,16 @@ export default function App() {
   const [collectionMovies, setCollectionMovies] = useState([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
-  // إبلاغ Capgo وجلب الفئات عند بداية التشغيل
+  // إدارة التحديثات وتأكيد جاهزية التطبيق
   useEffect(() => {
-    CapacitorUpdater.notifyAppReady();
+    async function initOTA() {
+      try {
+        await CapacitorUpdater.notifyAppReady();
+      } catch (e) {
+        console.error('Capgo init error:', e);
+      }
+    }
+    initOTA();
 
     fetch(GENRES_URL)
       .then((res) => res.json())
