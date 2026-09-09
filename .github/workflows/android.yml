@@ -17,30 +17,31 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup Java JDK 21
+      - name: Setup Java JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '21'
+          java-version: '17'
 
       - name: Install Dependencies
-        run: |
-          npm install --legacy-peer-deps
-          npm install @capacitor/core@6.0.0 @capacitor/android@6.0.0 --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: Build Web Assets
         run: npm run build
 
-      - name: Add Android Platform directly
-        run: npx cap add android
+      - name: Add Android Platform
+        run: npx cap add android || true
 
-      - name: Force SDK 34 in Android Config
+      - name: Capacitor Sync
+        run: npx cap sync android
+
+      - name: Configure Android SDK 35 & Gradle Plugin
         run: |
           cat << 'EOF' > android/variables.gradle
           ext {
               minSdkVersion = 22
-              compileSdkVersion = 34
-              targetSdkVersion = 34
+              compileSdkVersion = 35
+              targetSdkVersion = 35
               androidxActivityVersion = '1.8.0'
               androidxAppCompatVersion = '1.6.1'
               androidxCoordinatorLayoutVersion = '1.2.0'
@@ -54,9 +55,7 @@ jobs:
               cordovaAndroidVersion = '10.1.1'
           }
           EOF
-
-      - name: Capacitor Sync
-        run: npx cap sync android
+          sed -i 's/com.android.tools.build:gradle:8.2.1/com.android.tools.build:gradle:8.2.2/g' android/build.gradle || true
 
       - name: Deploy to Capgo OTA
         run: npx @capgo/cli bundle upload -a ${{ secrets.CAPGO_TOKEN }} --no-code-check
