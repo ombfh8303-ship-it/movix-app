@@ -31,15 +31,11 @@ jobs:
       - name: Build Web Assets
         run: npm run build
 
-      - name: Setup Android Platform
-        run: |
-          rm -rf android
-          npx cap add android
+      - name: Add Android Platform
+        run: npx cap add android || true
 
-      - name: Configure SDK 34 via Gradle Properties
+      - name: Ensure variables.gradle SDK Values
         run: |
-          echo "android.compileSdkVersion=34" >> android/gradle.properties
-          echo "android.targetSdkVersion=34" >> android/gradle.properties
           cat << 'EOF' > android/variables.gradle
           ext {
               minSdkVersion = 22
@@ -69,7 +65,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug -Pandroid.injected.build.api=34
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
