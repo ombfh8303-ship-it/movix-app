@@ -31,21 +31,29 @@ jobs:
       - name: Build Web Assets
         run: npm run build
 
-      - name: Add Android Platform
-        run: npx cap add android || true
+      - name: Add Android Platform directly
+        run: npx cap add android
 
-      - name: Patch Android SDK Version directly
+      - name: Force SDK 34 in Android Config
         run: |
-          python3 -c "
-          import re
-          path = 'android/variables.gradle'
-          with open(path, 'r') as f:
-              content = f.read()
-          content = re.sub(r'compileSdkVersion\s*=\s*\d+', 'compileSdkVersion = 34', content)
-          content = re.sub(r'targetSdkVersion\s*=\s*\d+', 'targetSdkVersion = 34', content)
-          with open(path, 'w') as f:
-              f.write(content)
-          "
+          cat << 'EOF' > android/variables.gradle
+          ext {
+              minSdkVersion = 22
+              compileSdkVersion = 34
+              targetSdkVersion = 34
+              androidxActivityVersion = '1.8.0'
+              androidxAppCompatVersion = '1.6.1'
+              androidxCoordinatorLayoutVersion = '1.2.0'
+              androidxCoreVersion = '1.12.0'
+              androidxFragmentVersion = '1.6.2'
+              coreSplashScreenVersion = '1.0.1'
+              androidxWebkitVersion = '1.9.0'
+              junitVersion = '4.13.2'
+              androidxJunitVersion = '1.1.5'
+              androidxEspressoCoreVersion = '3.5.1'
+              cordovaAndroidVersion = '10.1.1'
+          }
+          EOF
 
       - name: Capacitor Sync
         run: npx cap sync android
