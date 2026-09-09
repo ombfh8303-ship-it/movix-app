@@ -37,11 +37,6 @@ jobs:
       - name: Capacitor Sync
         run: npx @capacitor/cli sync android
 
-      - name: Update Android Variables SDK 34
-        run: |
-          sed -i 's/compileSdkVersion = .*/compileSdkVersion = 34/g' android/variables.gradle || true
-          sed -i 's/targetSdkVersion = .*/targetSdkVersion = 34/g' android/variables.gradle || true
-
       - name: Deploy to Capgo OTA
         run: npx @capgo/cli bundle upload -a ${{ secrets.CAPGO_TOKEN }} --no-code-check
 
@@ -49,7 +44,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug -PcompileSdkVersion=34 -PtargetSdkVersion=34 -Pandroid.compileSdk=34
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
