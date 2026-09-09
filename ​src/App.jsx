@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 
-const API_KEY = import.meta.env.VITE_TMDB_API_KEY || '2e462852d8a74a1474c39e45c77bb024';
+const VITE_KEY = import.meta.env.VITE_TMDB_API_KEY;
+const API_KEY = (VITE_KEY && VITE_KEY.trim() !== '') ? VITE_KEY : '2e462852d8a74a1474c39e45c77bb024';
+
 const DISCOVER_URL = `https://api.themoviedb.org/3/discover/movie?api_key=${API_KEY}&language=ar-SA&sort_by=popularity.desc`;
 const SEARCH_URL = `https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&language=ar-SA&query=`;
 const GENRES_URL = `https://api.themoviedb.org/3/genre/movie/list?api_key=${API_KEY}&language=ar-SA`;
@@ -87,6 +89,8 @@ export default function App() {
   useEffect(() => {
     if (!showFavoritesOnly) {
       fetchMovies(1, selectedGenre);
+    } else {
+      setLoading(false);
     }
   }, [selectedGenre, showFavoritesOnly]);
 
@@ -102,11 +106,17 @@ export default function App() {
       return;
     }
 
+    setLoading(true);
     fetch(`${SEARCH_URL}${encodeURIComponent(searchTerm)}&page=1`)
       .then((res) => res.json())
       .then((data) => {
         setMovies(data.results || []);
         setTotalPages(data.total_pages || 1);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setLoading(false);
       });
   };
 
@@ -134,7 +144,8 @@ export default function App() {
         if (data.belongs_to_collection) {
           fetch(`${COLLECTION_URL}${data.belongs_to_collection.id}?api_key=${API_KEY}&language=ar-SA`)
             .then((res) => res.json())
-            .then((colData) => setCollectionMovies(colData.parts || []));
+            .then((colData) => setCollectionMovies(colData.parts || []))
+            .catch((err) => console.error(err));
         }
       })
       .catch((err) => {
@@ -169,7 +180,6 @@ export default function App() {
           }}
         />
 
-        {/* أزرار التصفية والمفضلة */}
         <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '10px 0', marginTop: '10px' }}>
           <button
             onClick={() => {
@@ -233,49 +243,55 @@ export default function App() {
           {showFavoritesOnly ? 'قائمة المفضلة' : query ? `نتائج البحث عن: ${query}` : 'الأفلام المتاحة'}
         </h2>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '12px' }}>
-          {displayedMovies.map((movie, index) => {
-            const isFav = favorites.some((f) => f.id === movie.id);
-            return (
-              <div key={`${movie.id}-${index}`} style={{ textAlign: 'center', position: 'relative' }}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleFavorite(movie);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: '5px',
-                    left: '5px',
-                    backgroundColor: 'rgba(0,0,0,0.6)',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '28px',
-                    height: '28px',
-                    color: isFav ? '#ffb400' : '#fff',
-                    fontSize: '1rem',
-                    cursor: 'pointer',
-                    zIndex: 2
-                  }}
-                >
-                  {isFav ? '★' : '☆'}
-                </button>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <p style={{ color: '#ccc' }}>جاري تحميل الأفلام...</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '12px' }}>
+            {displayedMovies.map((movie, index) => {
+              const isFav = favorites.some((f) => f.id === movie.id);
+              return (
+                <div key={`${movie.id}-${index}`} style={{ textAlign: 'center', position: 'relative' }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(movie);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '5px',
+                      left: '5px',
+                      backgroundColor: 'rgba(0,0,0,0.6)',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '28px',
+                      height: '28px',
+                      color: isFav ? '#ffb400' : '#fff',
+                      fontSize: '1rem',
+                      cursor: 'pointer',
+                      zIndex: 2
+                    }}
+                  >
+                    {isFav ? '★' : '☆'}
+                  </button>
 
-                <div onClick={() => handleSelectMovie(movie.id)} style={{ cursor: 'pointer' }}>
-                  <img 
-                    src={movie.poster_path ? `${IMAGE_PATH}${movie.poster_path}` : 'https://via.placeholder.com/150'} 
-                    alt={movie.title} 
-                    style={{ width: '100%', borderRadius: '8px', objectFit: 'cover' }} 
-                  />
-                  <h3 style={{ fontSize: '0.8rem', margin: '5px 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {movie.title}
-                  </h3>
-                  <span style={{ color: '#ffb400', fontSize: '0.75rem' }}>★ {movie.vote_average?.toFixed(1)}</span>
+                  <div onClick={() => handleSelectMovie(movie.id)} style={{ cursor: 'pointer' }}>
+                    <img 
+                      src={movie.poster_path ? `${IMAGE_PATH}${movie.poster_path}` : 'https://via.placeholder.com/150'} 
+                      alt={movie.title} 
+                      style={{ width: '100%', borderRadius: '8px', objectFit: 'cover' }} 
+                    />
+                    <h3 style={{ fontSize: '0.8rem', margin: '5px 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {movie.title}
+                    </h3>
+                    <span style={{ color: '#ffb400', fontSize: '0.75rem' }}>★ {movie.vote_average?.toFixed(1)}</span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {!loading && !showFavoritesOnly && page < totalPages && (
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
@@ -301,7 +317,6 @@ export default function App() {
         )}
       </main>
 
-      {/* نافذة التفاصيل والأجزاء */}
       {(selectedMovie || loadingDetails) && (
         <div style={{
           position: 'fixed',
