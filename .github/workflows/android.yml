@@ -34,6 +34,32 @@ jobs:
       - name: Add Android Platform
         run: npx @capacitor/cli add android || true
 
+      - name: Force SDK 34 Configuration
+        run: |
+          mkdir -p android
+          cat << 'EOF' > android/variables.gradle
+          ext {
+              minSdkVersion = 22
+              compileSdkVersion = 34
+              targetSdkVersion = 34
+              androidxActivityVersion = '1.8.0'
+              androidxAppCompatVersion = '1.6.1'
+              androidxCoordinatorLayoutVersion = '1.2.0'
+              androidxCoreVersion = '1.12.0'
+              androidxFragmentVersion = '1.6.2'
+              coreSplashScreenVersion = '1.0.1'
+              androidxWebkitVersion = '1.9.0'
+              junitVersion = '4.13.2'
+              androidxJunitVersion = '1.1.5'
+              androidxEspressoCoreVersion = '3.5.1'
+              cordovaAndroidVersion = '10.1.1'
+          }
+          EOF
+          if [ -f android/app/build.gradle ]; then
+            sed -i 's/compileSdkVersion.*/compileSdkVersion 34/g' android/app/build.gradle || true
+            sed -i 's/targetSdkVersion.*/targetSdkVersion 34/g' android/app/build.gradle || true
+          fi
+
       - name: Capacitor Sync
         run: npx @capacitor/cli sync android
 
@@ -44,7 +70,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug -PcompileSdkVersion=34 -PtargetSdkVersion=34 -Pandroid.compileSdk=34
+          ./gradlew assembleDebug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
