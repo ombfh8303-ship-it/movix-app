@@ -37,10 +37,10 @@ jobs:
       - name: Capacitor Sync
         run: npx @capacitor/cli sync android
 
-      - name: Update Compile SDK Version
+      - name: Update Android Variables SDK 34
         run: |
-          sed -i 's/compileSdkVersion.*/compileSdkVersion = 34/g' android/app/build.gradle || true
-          sed -i 's/targetSdkVersion.*/targetSdkVersion = 34/g' android/app/build.gradle || true
+          sed -i 's/compileSdkVersion = .*/compileSdkVersion = 34/g' android/variables.gradle || true
+          sed -i 's/targetSdkVersion = .*/targetSdkVersion = 34/g' android/variables.gradle || true
 
       - name: Deploy to Capgo OTA
         run: npx @capgo/cli bundle upload -a ${{ secrets.CAPGO_TOKEN }} --no-code-check
