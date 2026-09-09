@@ -37,7 +37,7 @@ jobs:
       - name: Capacitor Sync
         run: npx @capacitor/cli sync android
 
-      - name: Update Compile SDK
+      - name: Update Compile SDK Version
         run: |
           sed -i 's/compileSdkVersion.*/compileSdkVersion = 34/g' android/app/build.gradle || true
           sed -i 's/targetSdkVersion.*/targetSdkVersion = 34/g' android/app/build.gradle || true
