@@ -31,12 +31,9 @@ jobs:
       - name: Build Web Assets
         run: npm run build
 
-      - name: Add Android Platform
-        run: npx @capacitor/cli add android || true
-
-      - name: Force SDK 34 Configuration
+      - name: Set Up Capacitor Android Platform with SDK 34
         run: |
-          mkdir -p android
+          npx cap add android || true
           cat << 'EOF' > android/variables.gradle
           ext {
               minSdkVersion = 22
@@ -55,13 +52,9 @@ jobs:
               cordovaAndroidVersion = '10.1.1'
           }
           EOF
-          if [ -f android/app/build.gradle ]; then
-            sed -i 's/compileSdkVersion.*/compileSdkVersion 34/g' android/app/build.gradle || true
-            sed -i 's/targetSdkVersion.*/targetSdkVersion 34/g' android/app/build.gradle || true
-          fi
 
       - name: Capacitor Sync
-        run: npx @capacitor/cli sync android
+        run: npx cap sync android
 
       - name: Deploy to Capgo OTA
         run: npx @capgo/cli bundle upload -a ${{ secrets.CAPGO_TOKEN }} --no-code-check
