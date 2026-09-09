@@ -26,23 +26,38 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install --legacy-peer-deps
-          npm install @capacitor/core @capacitor/android --legacy-peer-deps
+          npm install @capacitor/core@6.0.0 @capacitor/android@6.0.0 --legacy-peer-deps
 
       - name: Build Web Assets
         run: npm run build
 
       - name: Add Android Platform
-        run: npx @capacitor/cli add android || true
+        run: npx cap add android || true
 
-      - name: Set SDK Version to 34
+      - name: Set Android SDK 34 Properties
         run: |
-          if [ -f android/variables.gradle ]; then
-            sed -i 's/compileSdkVersion = .*/compileSdkVersion = 34/g' android/variables.gradle
-            sed -i 's/targetSdkVersion = .*/targetSdkVersion = 34/g' android/variables.gradle
-          fi
+          mkdir -p android
+          cat << 'EOF' > android/variables.gradle
+          ext {
+              minSdkVersion = 22
+              compileSdkVersion = 34
+              targetSdkVersion = 34
+              androidxActivityVersion = '1.8.0'
+              androidxAppCompatVersion = '1.6.1'
+              androidxCoordinatorLayoutVersion = '1.2.0'
+              androidxCoreVersion = '1.12.0'
+              androidxFragmentVersion = '1.6.2'
+              coreSplashScreenVersion = '1.0.1'
+              androidxWebkitVersion = '1.9.0'
+              junitVersion = '4.13.2'
+              androidxJunitVersion = '1.1.5'
+              androidxEspressoCoreVersion = '3.5.1'
+              cordovaAndroidVersion = '10.1.1'
+          }
+          EOF
 
       - name: Capacitor Sync
-        run: npx @capacitor/cli sync android
+        run: npx cap sync android
 
       - name: Deploy to Capgo OTA
         run: npx @capgo/cli bundle upload -a ${{ secrets.CAPGO_TOKEN }} --no-code-check
@@ -51,7 +66,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug -Pandroid.injected.build.api=34
+          ./gradlew assembleDebug -Pandroid.injected.build.api=34 -PcompileSdkVersion=34
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
