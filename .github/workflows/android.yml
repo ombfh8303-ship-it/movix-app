@@ -35,11 +35,11 @@ jobs:
       - name: Capacitor Sync
         run: npx cap sync android
 
-      - name: Configure Android SDK 35 & Gradle Plugin
+      - name: Configure Android SDK & Gradle Plugin
         run: |
           cat << 'EOF' > android/variables.gradle
           ext {
-              minSdkVersion = 22
+              minSdkVersion = 23
               compileSdkVersion = 35
               targetSdkVersion = 35
               androidxActivityVersion = '1.8.0'
