@@ -26,7 +26,9 @@ jobs:
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Build Web Assets
+      - name: Build Web Assets with Secrets
+        env:
+          VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
         run: npm run build
 
       - name: Add Android Platform
