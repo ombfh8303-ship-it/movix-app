@@ -146,7 +146,7 @@ export default function App() {
   const displayedMovies = showFavoritesOnly ? favorites : movies;
 
   return (
-    <div style={{ backgroundColor: '#121212', color: '#fff', minHeight: '100vh', padding: '15px', fontFamily: 'sans-serif' }}>
+    <div style={{ backgroundColor: '#121212', color: '#fff', minHeight: '100vh', padding: '15px', fontFamily: 'sans-serif', direction: 'rtl' }}>
       <header style={{ textAlign: 'center', marginBottom: '15px' }}>
         <h1 style={{ color: '#e50914', margin: '0 0 10px 0' }}>Movix</h1>
         
@@ -246,7 +246,7 @@ export default function App() {
                   style={{
                     position: 'absolute',
                     top: '5px',
-                    right: '5px',
+                    left: '5px',
                     backgroundColor: 'rgba(0,0,0,0.6)',
                     border: 'none',
                     borderRadius: '50%',
@@ -331,7 +331,7 @@ export default function App() {
               style={{
                 position: 'absolute',
                 top: '10px',
-                left: '10px',
+                right: '10px',
                 backgroundColor: '#e50914',
                 color: '#fff',
                 border: 'none',
