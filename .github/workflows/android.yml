@@ -31,11 +31,15 @@ jobs:
       - name: Build Web Assets
         run: npm run build
 
-      - name: Setup Android Platform and Force SDK 34
+      - name: Setup Android Platform
         run: |
           rm -rf android
           npx cap add android
-          # Force compileSdkVersion and targetSdkVersion in variables.gradle
+
+      - name: Configure SDK 34 via Gradle Properties
+        run: |
+          echo "android.compileSdkVersion=34" >> android/gradle.properties
+          echo "android.targetSdkVersion=34" >> android/gradle.properties
           cat << 'EOF' > android/variables.gradle
           ext {
               minSdkVersion = 22
@@ -54,9 +58,6 @@ jobs:
               cordovaAndroidVersion = '10.1.1'
           }
           EOF
-          # Patch app build.gradle directly
-          sed -i 's/compileSdkVersion.*/compileSdkVersion 34/g' android/app/build.gradle
-          sed -i 's/targetSdkVersion.*/targetSdkVersion 34/g' android/app/build.gradle
 
       - name: Capacitor Sync
         run: npx cap sync android
