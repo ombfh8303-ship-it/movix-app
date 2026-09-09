@@ -31,10 +31,11 @@ jobs:
       - name: Build Web Assets
         run: npm run build
 
-      - name: Recreate Android Platform with Clean SDK 34
+      - name: Setup Android Platform and Force SDK 34
         run: |
           rm -rf android
           npx cap add android
+          # Force compileSdkVersion and targetSdkVersion in variables.gradle
           cat << 'EOF' > android/variables.gradle
           ext {
               minSdkVersion = 22
@@ -53,6 +54,9 @@ jobs:
               cordovaAndroidVersion = '10.1.1'
           }
           EOF
+          # Patch app build.gradle directly
+          sed -i 's/compileSdkVersion.*/compileSdkVersion 34/g' android/app/build.gradle
+          sed -i 's/targetSdkVersion.*/targetSdkVersion 34/g' android/app/build.gradle
 
       - name: Capacitor Sync
         run: npx cap sync android
@@ -64,7 +68,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug -PcompileSdkVersion=34 -PtargetSdkVersion=34
+          ./gradlew assembleDebug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
