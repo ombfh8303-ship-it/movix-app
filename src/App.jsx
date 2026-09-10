@@ -8,27 +8,28 @@ import {
   IMAGE_BASE_URL,
   BACKDROP_BASE_URL
 } from './services/tmdb';
-import MovieCard from './components/MovieCard';
 
 export default function App() {
   const [items, setItems] = useState([]);
-  const [contentType, setContentType] = useState('movie');
+  const [contentType, setContentType] = useState('movie'); // 'movie' or 'tv'
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [lang, setLang] = useState('ar-SA');
 
-  // حالات التصنيفات
+  // التصنيفات ونافذة الفلترة
   const [genres, setGenres] = useState([]);
   const [selectedGenre, setSelectedGenre] = useState('');
+  const [tempGenre, setTempGenre] = useState('');
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // حالات التفاصيل
+  // التفاصيل
   const [selectedItem, setSelectedItem] = useState(null);
   const [details, setDetails] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
 
-  // جلب قائمة التصنيفات
+  // جلب التصنيفات
   useEffect(() => {
     const getGenresList = async () => {
       const list = await fetchGenres(contentType, lang);
@@ -37,7 +38,7 @@ export default function App() {
     getGenresList();
   }, [contentType, lang]);
 
-  // جلب البيانات
+  // جلب البيانات الرئيسية
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -58,7 +59,7 @@ export default function App() {
     loadData();
   }, [contentType, page, searchQuery, selectedGenre, lang]);
 
-  // جلب التفاصيل
+  // جلب تفاصيل الفيلم/المسلسل
   useEffect(() => {
     if (!selectedItem) {
       setDetails(null);
@@ -73,16 +74,11 @@ export default function App() {
     getDetails();
   }, [selectedItem, contentType, lang]);
 
-  const handleTypeChange = (type) => {
-    setContentType(type);
-    setSelectedGenre('');
-    setPage(1);
-  };
-
-  const handleGenreChange = (genreId) => {
-    setSelectedGenre(genreId);
+  const handleApplyFilter = () => {
+    setSelectedGenre(tempGenre);
     setSearchQuery('');
     setPage(1);
+    setShowFilterModal(false);
   };
 
   const toggleLanguage = () => {
@@ -95,198 +91,138 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0d0f12] text-slate-100 font-sans antialiased selection:bg-red-600 selection:text-white pb-12" dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen bg-black text-slate-100 font-sans antialiased pb-28 selection:bg-amber-500 selection:text-black" dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}>
       
-      {/* 1. Header شريط علوي حديث وزجاجي */}
-      <header className="sticky top-0 z-40 backdrop-blur-xl bg-[#0d0f12]/80 border-b border-slate-800/60 px-4 md:px-8 py-3.5 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setSelectedGenre(''); setSearchQuery(''); setPage(1); }}>
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-red-500 flex items-center justify-center shadow-lg shadow-red-600/30">
-            <span className="text-xl">🎬</span>
-          </div>
-          <div>
-            <h1 className="text-xl font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-red-500">
-              موڤيكس
-            </h1>
-            <p className="text-[10px] text-slate-400 -mt-1 font-medium tracking-widest">MOVIX STREAM</p>
-          </div>
+      {/* 1. Header علوي أنيق بأسلوب الموبايل */}
+      <header className="px-5 py-4 flex items-center justify-between sticky top-0 z-30 bg-black/90 backdrop-blur-md border-b border-amber-900/20">
+        <div className="w-10 h-10 rounded-full bg-amber-200/20 border border-amber-400/30 flex items-center justify-center text-amber-300 font-bold">
+          👤
         </div>
-
-        {/* زر التبديل بين الأفلام والمسلسلات في الهيدر */}
-        <div className="hidden sm:flex bg-slate-900/80 p-1 rounded-full border border-slate-800">
-          <button
-            onClick={() => handleTypeChange('movie')}
-            className={`px-5 py-1.5 rounded-full text-xs font-bold transition-all duration-300 ${
-              contentType === 'movie' ? 'bg-red-600 text-white shadow-lg shadow-red-600/40' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            {lang === 'ar-SA' ? 'الأفلام' : 'Movies'}
-          </button>
-          <button
-            onClick={() => handleTypeChange('tv')}
-            className={`px-5 py-1.5 rounded-full text-xs font-bold transition-all duration-300 ${
-              contentType === 'tv' ? 'bg-red-600 text-white shadow-lg shadow-red-600/40' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            {lang === 'ar-SA' ? 'المسلسلات' : 'TV Shows'}
-          </button>
+        <div className="text-center">
+          <h1 className="text-lg font-black tracking-wider text-amber-200">
+            موڤيكس
+          </h1>
         </div>
-
         <button
           onClick={toggleLanguage}
-          className="bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold px-4 py-2 rounded-full border border-slate-800 transition shadow-inner"
+          className="text-amber-200 bg-amber-950/40 border border-amber-500/30 px-3 py-1.5 rounded-full text-xs font-semibold"
         >
-          {lang === 'ar-SA' ? 'English 🌐' : 'العربية 🌐'}
+          {lang === 'ar-SA' ? 'EN' : 'عربي'}
         </button>
       </header>
 
-      {/* 2. Hero Featured Section (عرض غلاف بطل أحدث فيلم متاح عند عدم البحث) */}
-      {!searchQuery && !selectedGenre && page === 1 && featuredItem && (
-        <div className="relative w-full h-[55vh] md:h-[65vh] mb-8 overflow-hidden group">
-          <img
-            src={`${BACKDROP_BASE_URL}${featuredItem.backdrop_path || featuredItem.poster_path}`}
-            alt={featuredItem.title || featuredItem.name}
-            className="w-full h-full object-cover transform scale-105 group-hover:scale-100 transition duration-1000 ease-out"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0d0f12] via-[#0d0f12]/50 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0d0f12]/90 via-[#0d0f12]/30 to-transparent" />
+      <main className="px-4 max-w-md md:max-w-4xl mx-auto space-y-6 pt-2">
 
-          <div className="absolute bottom-8 px-6 md:px-12 max-w-2xl space-y-3">
-            <div className="inline-flex items-center gap-2 bg-red-600/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md">
-              🔥 {lang === 'ar-SA' ? 'الأكثر تداولاً هذا الأسبوع' : 'Trending This Week'}
-            </div>
-            <h2 className="text-3xl md:text-5xl font-black text-white leading-tight drop-shadow-md">
-              {featuredItem.title || featuredItem.name}
-            </h2>
-            <p className="text-slate-300 text-xs md:text-sm line-clamp-2 leading-relaxed">
-              {featuredItem.overview}
-            </p>
-            <div className="pt-2 flex items-center gap-3">
-              <button
+        {/* 2. البانر الرئيسي الأكثر تداولاً بتصميم الـ Curved Hero البارز */}
+        {!searchQuery && !selectedGenre && page === 1 && featuredItem && (
+          <div className="relative rounded-3xl overflow-hidden bg-zinc-900 border border-amber-500/30 shadow-2xl shadow-amber-900/10">
+            <div className="relative h-64 md:h-80 w-full">
+              <img
+                src={`${BACKDROP_BASE_URL}${featuredItem.backdrop_path || featuredItem.poster_path}`}
+                alt={featuredItem.title || featuredItem.name}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+              
+              {/* زر التشغيل الخشي/الدافئ المميز */}
+              <button 
                 onClick={() => setSelectedItem(featuredItem)}
-                className="bg-red-600 hover:bg-red-500 text-white font-bold px-6 py-2.5 rounded-xl transition shadow-lg shadow-red-600/40 flex items-center gap-2 text-xs md:text-sm"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-2xl bg-amber-200/90 text-black flex items-center justify-center text-xl font-bold shadow-xl hover:scale-105 transition border border-amber-300"
               >
-                <span>▶</span> {lang === 'ar-SA' ? 'عرض التفاصيل' : 'View Details'}
+                ▶
               </button>
-              <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 px-3 py-2 rounded-xl text-yellow-400 text-xs font-extrabold flex items-center gap-1">
-                ★ {featuredItem.vote_average?.toFixed(1)}
+
+              <div className="absolute bottom-4 inset-x-0 text-center px-4 space-y-1">
+                <span className="text-[11px] font-bold tracking-widest text-amber-300 uppercase bg-black/60 px-3 py-1 rounded-full border border-amber-500/30 backdrop-blur-md">
+                  🔥 {lang === 'ar-SA' ? 'الأكثر تداولاً هذا الأسبوع' : 'Trending This Week'}
+                </span>
+                <h2 className="text-xl md:text-2xl font-black text-white truncate drop-shadow-md">
+                  {featuredItem.title || featuredItem.name}
+                </h2>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <main className="px-4 md:px-8 max-w-7xl mx-auto space-y-6">
-
-        {/* 3. شريط البحث والتبديل للجوال */}
+        {/* 3. شريط البحث والفرز */}
         <div className="space-y-3">
-          <div className="flex sm:hidden justify-center bg-slate-900/90 p-1 rounded-xl border border-slate-800">
-            <button
-              onClick={() => handleTypeChange('movie')}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${
-                contentType === 'movie' ? 'bg-red-600 text-white' : 'text-slate-400'
-              }`}
-            >
-              {lang === 'ar-SA' ? 'الأفلام' : 'Movies'}
-            </button>
-            <button
-              onClick={() => handleTypeChange('tv')}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${
-                contentType === 'tv' ? 'bg-red-600 text-white' : 'text-slate-400'
-              }`}
-            >
-              {lang === 'ar-SA' ? 'المسلسلات' : 'TV Shows'}
-            </button>
-          </div>
-
           <div className="relative">
             <input
               type="text"
-              placeholder={lang === 'ar-SA' ? 'ابحث عن فيلم، مسلسل، أو ممثل...' : 'Search movies, tv, actors...'}
+              placeholder={lang === 'ar-SA' ? 'ابحث عن فيلم أو مسلسل...' : 'Search movies, tv...'}
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
                 setSelectedGenre('');
                 setPage(1);
               }}
-              className="w-full bg-slate-900/90 text-white placeholder-slate-500 border border-slate-800 focus:border-red-500/80 px-5 py-3.5 pr-12 rounded-2xl focus:outline-none transition shadow-lg text-xs md:text-sm"
+              className="w-full bg-zinc-900/90 text-amber-100 placeholder-zinc-500 border border-amber-500/20 px-5 py-3.5 pr-11 rounded-2xl focus:outline-none focus:border-amber-400 text-sm shadow-inner"
             />
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-base">🔍</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">🔍</span>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <h3 className="text-base font-extrabold text-amber-100">
+              {searchQuery
+                ? (lang === 'ar-SA' ? 'نتائج البحث' : 'Search Results')
+                : selectedGenre
+                ? genres.find((g) => g.id === Number(selectedGenre))?.name || (lang === 'ar-SA' ? 'الأفلام' : 'Movies')
+                : contentType === 'movie'
+                ? (lang === 'ar-SA' ? 'الأفلام الشائعة' : 'Popular Movies')
+                : (lang === 'ar-SA' ? 'المسلسلات الشائعة' : 'Popular TV Series')}
+            </h3>
+
+            {/* زر فتح نافذة الفلترة المبتكرة */}
+            <button
+              onClick={() => {
+                setTempGenre(selectedGenre);
+                setShowFilterModal(true);
+              }}
+              className="flex items-center gap-1.5 bg-zinc-900 text-amber-200 border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-zinc-800 transition"
+            >
+              <span>⚙️</span>
+              <span>{lang === 'ar-SA' ? 'التصنيف' : 'Filter'}</span>
+            </button>
           </div>
         </div>
 
-        {/* 4. التصنيفات أزرار دائرية جذابة (Chips) */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-          <button
-            onClick={() => handleGenreChange('')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
-              selectedGenre === ''
-                ? 'bg-white text-slate-950 border-white shadow-lg shadow-white/10'
-                : 'bg-slate-900/80 text-slate-400 border-slate-800/80 hover:bg-slate-800 hover:text-slate-200'
-            }`}
-          >
-            {lang === 'ar-SA' ? '✨ الكل' : '✨ All'}
-          </button>
-          {genres.map((g) => (
-            <button
-              key={g.id}
-              onClick={() => handleGenreChange(g.id)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
-                selectedGenre === g.id
-                  ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-600/30'
-                  : 'bg-slate-900/80 text-slate-400 border-slate-800/80 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              {g.name}
-            </button>
-          ))}
-        </div>
-
-        {/* 5. شبكة عرض البطاقات (Grid Layout) */}
+        {/* 4. شبكة عرض البطاقات ذات الحواف الدافئة Curved Glass */}
         {loading ? (
-          <div className="flex justify-center items-center py-32">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-red-600 border-t-transparent"></div>
+          <div className="flex justify-center items-center py-24">
+            <div className="animate-spin rounded-full h-10 w-10 border-2 border-amber-300 border-t-transparent"></div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             {items.map((item) => (
-              <div 
-                key={item.id} 
+              <div
+                key={item.id}
                 onClick={() => setSelectedItem(item)}
-                className="group relative cursor-pointer rounded-2xl overflow-hidden bg-slate-900 border border-slate-800/60 transition duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-red-600/20 hover:border-slate-700"
+                className="group relative cursor-pointer rounded-2xl overflow-hidden bg-zinc-900 border border-amber-500/20 hover:border-amber-400/60 transition duration-300 shadow-lg"
               >
-                {/* صورة البوستر */}
-                <div className="aspect-[2/3] w-full overflow-hidden bg-slate-950 relative">
+                <div className="aspect-[2/3] w-full overflow-hidden relative">
                   {item.poster_path ? (
                     <img
                       src={`${IMAGE_BASE_URL}${item.poster_path}`}
                       alt={item.title || item.name}
-                      className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                       loading="lazy"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs">
+                    <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">
                       No Poster
                     </div>
                   )}
 
-                  {/* شارة التقييم فوق الصورة */}
-                  <div className="absolute top-2.5 right-2.5 bg-black/60 backdrop-blur-md text-yellow-400 border border-white/10 px-2 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1 shadow-md">
+                  {/* شارة التقييم الدافئة */}
+                  <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-lg text-[10px] font-black">
                     ★ {item.vote_average ? item.vote_average.toFixed(1) : 'N/A'}
                   </div>
 
-                  {/* تدرج سفلي وتفاصيل المصغرة عند التحويم */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent opacity-90 group-hover:opacity-100 transition duration-300" />
-                  
-                  <div className="absolute bottom-0 p-3.5 w-full space-y-1">
-                    <h3 className="text-sm font-bold text-white truncate group-hover:text-red-400 transition">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80" />
+                  <div className="absolute bottom-2 inset-x-2 text-center">
+                    <p className="text-xs font-bold text-white truncate drop-shadow">
                       {item.title || item.name}
-                    </h3>
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium">
-                      <span>{item.release_date?.substring(0, 4) || item.first_air_date?.substring(0, 4) || '—'}</span>
-                      <span className="uppercase text-[10px] bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/50">
-                        {contentType === 'movie' ? (lang === 'ar-SA' ? 'فيلم' : 'Movie') : (lang === 'ar-SA' ? 'مسلسل' : 'TV')}
-                      </span>
-                    </div>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -294,45 +230,157 @@ export default function App() {
           </div>
         )}
 
-        {/* 6. الترقيم والتنقل (Pagination) */}
-        <div className="flex justify-center items-center gap-4 pt-8">
+        {/* الترقيم */}
+        <div className="flex justify-center items-center gap-4 pt-4">
           <button
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(p - 1, 1))}
-            className="px-5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold disabled:opacity-40 hover:bg-slate-800 transition"
+            className="px-4 py-2 bg-zinc-900 border border-amber-500/20 rounded-xl text-xs font-bold text-amber-200 disabled:opacity-30"
           >
-            {lang === 'ar-SA' ? '← السابق' : '← Previous'}
+            {lang === 'ar-SA' ? 'السابق' : 'Prev'}
           </button>
-          <span className="text-xs font-bold text-slate-400 bg-slate-900/50 px-4 py-2 rounded-xl border border-slate-800">
+          <span className="text-xs font-bold text-zinc-400">
             {page} / {totalPages}
           </span>
           <button
             disabled={page >= totalPages}
             onClick={() => setPage((p) => p + 1)}
-            className="px-5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold disabled:opacity-40 hover:bg-slate-800 transition"
+            className="px-4 py-2 bg-zinc-900 border border-amber-500/20 rounded-xl text-xs font-bold text-amber-200 disabled:opacity-30"
           >
-            {lang === 'ar-SA' ? 'التالي →' : 'Next →'}
+            {lang === 'ar-SA' ? 'التالي' : 'Next'}
           </button>
         </div>
       </main>
 
-      {/* 7. صفحة تفاصيل العمل السينمائية المحدثة */}
+      {/* 5. Bottom Navigation Bar شريط التنقل السفلي الفاخر */}
+      <nav className="fixed bottom-0 inset-x-0 z-40 bg-zinc-950/95 backdrop-blur-xl border-t border-amber-900/30 px-4 py-2.5 max-w-md md:max-w-4xl mx-auto flex items-center justify-around">
+        <button
+          onClick={() => {
+            setSelectedGenre('');
+            setSearchQuery('');
+            setContentType('movie');
+            setPage(1);
+          }}
+          className={`flex flex-col items-center gap-1 px-4 py-1.5 rounded-2xl transition ${
+            contentType === 'movie' && !selectedGenre
+              ? 'bg-amber-200 text-black font-bold shadow-md shadow-amber-400/20'
+              : 'text-zinc-400 hover:text-amber-200'
+          }`}
+        >
+          <span className="text-base">🏠</span>
+          <span className="text-[10px]">{lang === 'ar-SA' ? 'الرئيسية' : 'Home'}</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setContentType('movie');
+            setSelectedGenre('');
+            setPage(1);
+          }}
+          className={`flex flex-col items-center gap-1 px-4 py-1.5 rounded-2xl transition ${
+            contentType === 'movie' && selectedGenre === ''
+              ? 'text-amber-300 font-bold'
+              : 'text-zinc-400 hover:text-amber-200'
+          }`}
+        >
+          <span className="text-base">🎬</span>
+          <span className="text-[10px]">{lang === 'ar-SA' ? 'الأفلام' : 'Movies'}</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setContentType('tv');
+            setSelectedGenre('');
+            setPage(1);
+          }}
+          className={`flex flex-col items-center gap-1 px-4 py-1.5 rounded-2xl transition ${
+            contentType === 'tv'
+              ? 'bg-amber-200 text-black font-bold shadow-md shadow-amber-400/20'
+              : 'text-zinc-400 hover:text-amber-200'
+          }`}
+        >
+          <span className="text-base">📺</span>
+          <span className="text-[10px]">{lang === 'ar-SA' ? 'المسلسلات' : 'TV Series'}</span>
+        </button>
+
+        <button
+          onClick={() => setShowFilterModal(true)}
+          className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-2xl text-zinc-400 hover:text-amber-200 transition"
+        >
+          <span className="text-base">🎛️</span>
+          <span className="text-[10px]">{lang === 'ar-SA' ? 'التصنيفات' : 'Genres'}</span>
+        </button>
+      </nav>
+
+      {/* 6. Filter Modal نافذة اختيار التصنيف (شبيه بالصورة الأخيرة) */}
+      {showFilterModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-amber-500/30 rounded-3xl w-full max-w-sm p-6 space-y-5 shadow-2xl animate-scaleIn">
+            <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+              <h3 className="text-base font-bold text-amber-200">
+                {lang === 'ar-SA' ? 'اختر التصنيف' : 'Select Genre'}
+              </h3>
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="text-zinc-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
+              <button
+                onClick={() => setTempGenre('')}
+                className={`py-2 rounded-xl text-xs font-bold transition border ${
+                  tempGenre === ''
+                    ? 'bg-amber-200 text-black border-amber-300'
+                    : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'
+                }`}
+              >
+                {lang === 'ar-SA' ? 'الكل' : 'All'}
+              </button>
+              {genres.map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => setTempGenre(g.id)}
+                  className={`py-2 rounded-xl text-xs font-bold truncate transition border px-1 ${
+                    String(tempGenre) === String(g.id)
+                      ? 'bg-amber-200 text-black border-amber-300'
+                      : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'
+                  }`}
+                >
+                  {g.name}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={handleApplyFilter}
+              className="w-full bg-amber-200 hover:bg-amber-300 text-black font-extrabold py-3 rounded-2xl shadow-lg transition text-sm"
+            >
+              {lang === 'ar-SA' ? 'تطبيق الفلتر' : 'Apply'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 7. صفحة التفاصيل */}
       {selectedItem && (
-        <div className="fixed inset-0 z-50 bg-[#0d0f12] overflow-y-auto min-h-screen text-slate-100 animate-fadeIn">
+        <div className="fixed inset-0 z-50 bg-black overflow-y-auto min-h-screen text-slate-100">
           <button
             onClick={() => setSelectedItem(null)}
-            className="fixed top-5 right-5 z-50 bg-slate-900/80 hover:bg-red-600 text-white px-4 py-2 rounded-full backdrop-blur-xl transition border border-slate-700 text-xs font-bold shadow-2xl flex items-center gap-2"
+            className="fixed top-4 right-4 z-50 bg-zinc-900/90 hover:bg-amber-500 hover:text-black text-amber-200 px-4 py-2 rounded-full backdrop-blur-md transition border border-amber-500/30 text-xs font-bold shadow-2xl flex items-center gap-1"
           >
             ✕ {lang === 'ar-SA' ? 'إغلاق' : 'Close'}
           </button>
 
           {detailsLoading ? (
             <div className="flex justify-center items-center h-screen">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-red-600 border-t-transparent"></div>
+              <div className="animate-spin rounded-full h-10 w-10 border-2 border-amber-300 border-t-transparent"></div>
             </div>
           ) : (
-            <div className="pb-20">
-              <div className="relative w-full h-[55vh] md:h-[70vh] bg-slate-950">
+            <div className="pb-24">
+              <div className="relative w-full h-[50vh] md:h-[60vh] bg-zinc-950">
                 {details?.backdrop_path ? (
                   <img
                     src={`${BACKDROP_BASE_URL}${details.backdrop_path}`}
@@ -340,42 +388,42 @@ export default function App() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-700">
+                  <div className="w-full h-full flex items-center justify-center text-zinc-700">
                     No Image
                   </div>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0d0f12] via-[#0d0f12]/60 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
 
-                <div className="absolute bottom-6 px-6 md:px-12 max-w-6xl mx-auto w-full flex items-end gap-6">
+                <div className="absolute bottom-6 px-6 max-w-4xl mx-auto w-full flex items-end gap-5">
                   {details?.poster_path && (
                     <img
                       src={`${IMAGE_BASE_URL}${details.poster_path}`}
                       alt="Poster"
-                      className="w-32 md:w-48 rounded-2xl shadow-2xl border-2 border-slate-800/80 hidden sm:block"
+                      className="w-28 md:w-40 rounded-2xl shadow-2xl border border-amber-500/30 hidden sm:block"
                     />
                   )}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <span className="bg-yellow-500 text-slate-950 font-black px-2.5 py-0.5 rounded-lg text-xs">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-amber-300 text-black font-black px-2 py-0.5 rounded text-[11px]">
                         ★ {details?.vote_average?.toFixed(1)}
                       </span>
-                      <span className="text-xs text-slate-400 font-semibold">
+                      <span className="text-xs text-zinc-400 font-semibold">
                         {details?.release_date || details?.first_air_date}
                       </span>
                     </div>
-                    <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight">
+                    <h1 className="text-2xl md:text-4xl font-black text-amber-100">
                       {details?.title || details?.name}
                     </h1>
                   </div>
                 </div>
               </div>
 
-              <div className="max-w-5xl mx-auto px-6 mt-8 space-y-8">
+              <div className="max-w-3xl mx-auto px-6 mt-6 space-y-6">
                 <div className="flex flex-wrap gap-2">
                   {details?.genres?.map((g) => (
                     <span
                       key={g.id}
-                      className="bg-slate-900 text-slate-300 px-3.5 py-1.5 rounded-xl text-xs font-bold border border-slate-800"
+                      className="bg-zinc-900 text-amber-200 px-3 py-1 rounded-xl text-xs font-bold border border-amber-500/20"
                     >
                       {g.name}
                     </span>
@@ -383,29 +431,29 @@ export default function App() {
                 </div>
 
                 <div className="space-y-2">
-                  <h2 className="text-lg font-bold text-white border-r-4 border-red-600 pr-3">
+                  <h2 className="text-base font-bold text-amber-200 border-r-4 border-amber-400 pr-3">
                     {lang === 'ar-SA' ? 'قصة العمل' : 'Overview'}
                   </h2>
-                  <p className="text-slate-300 leading-relaxed text-sm md:text-base font-normal">
+                  <p className="text-zinc-300 leading-relaxed text-xs md:text-sm">
                     {details?.overview || (lang === 'ar-SA' ? 'لا يوجد وصف متاح حالياً.' : 'No overview available.')}
                   </p>
                 </div>
 
                 {details?.credits?.cast?.length > 0 && (
                   <div className="space-y-3">
-                    <h2 className="text-lg font-bold text-white border-r-4 border-red-600 pr-3">
+                    <h2 className="text-base font-bold text-amber-200 border-r-4 border-amber-400 pr-3">
                       {lang === 'ar-SA' ? 'طاقم التمثيل' : 'Cast'}
                     </h2>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
                       {details.credits.cast.slice(0, 6).map((actor) => (
-                        <div key={actor.id} className="bg-slate-900/80 rounded-2xl p-3 text-center border border-slate-800/80">
+                        <div key={actor.id} className="bg-zinc-900/80 rounded-2xl p-2.5 text-center border border-amber-500/10">
                           <img
                             src={actor.profile_path ? `${IMAGE_BASE_URL}${actor.profile_path}` : 'https://via.placeholder.com/100'}
                             alt={actor.name}
-                            className="w-14 h-14 rounded-full object-cover mx-auto mb-2 border border-slate-700"
+                            className="w-12 h-12 rounded-full object-cover mx-auto mb-1.5 border border-zinc-700"
                           />
-                          <p className="text-xs font-bold text-white truncate">{actor.name}</p>
-                          <p className="text-[10px] text-slate-400 truncate">{actor.character}</p>
+                          <p className="text-[11px] font-bold text-white truncate">{actor.name}</p>
+                          <p className="text-[9px] text-zinc-400 truncate">{actor.character}</p>
                         </div>
                       ))}
                     </div>
@@ -413,11 +461,11 @@ export default function App() {
                 )}
 
                 {trailer && (
-                  <div className="space-y-3 pt-4">
-                    <h2 className="text-lg font-bold text-white border-r-4 border-red-600 pr-3">
+                  <div className="space-y-3 pt-2">
+                    <h2 className="text-base font-bold text-amber-200 border-r-4 border-amber-400 pr-3">
                       {lang === 'ar-SA' ? 'الإعلان الرسمي (Trailer)' : 'Official Trailer'}
                     </h2>
-                    <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 bg-black shadow-2xl">
+                    <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-amber-500/20 bg-black shadow-xl">
                       <iframe
                         src={`https://www.youtube.com/embed/${trailer.key}`}
                         title="Official Trailer"
