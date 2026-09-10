@@ -54,6 +54,29 @@ export const fetchByCompany = async (companyId, page = 1, lang = 'ar-SA') => {
 };
 
 /**
+ * جلب أعمال شركات الإنتاج أو منصات العرض (Studio / Network ID)
+ * تم دعم معرّفات الشبكات (Networks) مثل Netflix بجانب شركات الإنتاج
+ */
+export const fetchByStudio = async (type = 'movie', studioId, page = 1, lang = 'ar-SA') => {
+  try {
+    // نتفليكس لها معرّف شبكة (Network) ومعرّف شركة (Company)
+    // لتغطية جميع الاستوديوهات والمنصات بدقة:
+    const param = (type === 'tv' || studioId === 213 || studioId === '213') 
+      ? `with_networks=${studioId}` 
+      : `with_companies=${studioId}`;
+
+    const response = await fetch(
+      `${BASE_URL}/discover/${type}?api_key=${API_KEY}&${param}&language=${lang}&page=${page}&sort_by=popularity.desc`
+    );
+    if (!response.ok) throw new Error('Failed to fetch studio content');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching studio content:', error);
+    return { results: [], page: 1, total_pages: 1 };
+  }
+};
+
+/**
  * جلب المحتوى الشائع (الأكثر تداولاً)
  */
 export const fetchTrending = async (type = 'movie', page = 1, lang = 'ar-SA') => {
