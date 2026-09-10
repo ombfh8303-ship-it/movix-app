@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   fetchTrending,
   fetchTopRated,
@@ -23,7 +23,7 @@ const COMPANIES = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('home'); // 'home' | 'movies' | 'tv' | 'mylist'
+  const [activeTab, setActiveTab] = useState('home');
   const [lang, setLang] = useState('ar-SA');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -64,10 +64,17 @@ export default function App() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [trailerKey, setTrailerKey] = useState(null);
 
-  // مراقبة التمرير للـ Header
+  // مراقبة التمرير بشكل خفيف لسلاسة الأداء
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
-      setScrolled(window.scrollY > 30);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          setScrolled(window.scrollY > 30);
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
@@ -88,7 +95,7 @@ export default function App() {
     getGenresList();
   }, [activeTab, lang]);
 
-  // جلب محتوى الصفحة الرئيسية بما فيها شركات الإنتاج
+  // جلب محتوى الصفحة الرئيسية
   useEffect(() => {
     if (activeTab === 'home' && !searchQuery && !selectedGenre) {
       const loadHomeContent = async () => {
@@ -105,7 +112,6 @@ export default function App() {
         setTopRatedList(topRated.results || []);
         setTrendingTvList(tvTrending.results || []);
 
-        // جلب أفلام شركات الإنتاج بالتوازي
         const companyResults = {};
         await Promise.all(
           COMPANIES.map(async (comp) => {
@@ -114,14 +120,13 @@ export default function App() {
           })
         );
         setCompanyMovies(companyResults);
-
         setLoading(false);
       };
       loadHomeContent();
     }
   }, [activeTab, searchQuery, selectedGenre, lang]);
 
-  // جلب محتوى العرض الشبكي (الأفلام/المسلسلات/البحث/التصنيف)
+  // جلب محتوى العرض الشبكي
   useEffect(() => {
     if (activeTab !== 'home' || searchQuery || selectedGenre) {
       const loadGridContent = async () => {
@@ -165,7 +170,17 @@ export default function App() {
   }, [selectedItem, selectedItemType, lang]);
 
   // تشغيل الإعلان التشويقي مباشرة
-  const handlePlayTrailer = async (item, type = 'movie') => {
+  const handlePlayTrailer = useCallback(async (item, type = 'movie') => {
+    if (!item) return;
+    if (item.videos?.results) {
+      const trailer = item.videos.results.find(
+        (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
+      );
+      if (trailer) {
+        setTrailerKey(trailer.key);
+        return;
+      }
+    }
     const data = await fetchDetails(type, item.id, lang);
     const trailer = data?.videos?.results?.find(
       (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
@@ -173,44 +188,45 @@ export default function App() {
     if (trailer) {
       setTrailerKey(trailer.key);
     } else {
-      alert(lang === 'ar-SA' ? 'عذراً، الإعلان التشويقي غير متوفر لطلبك حالياً' : 'Trailer not available');
+      alert(lang === 'ar-SA' ? 'عذراً، الإعلان التشويقي غير متوفر حالياً' : 'Trailer not available');
     }
-  };
+  }, [lang]);
 
-  const toggleMyList = (item, type = 'movie') => {
-    const exists = myList.some((i) => i.id === item.id);
-    if (exists) {
-      setMyList(myList.filter((i) => i.id !== item.id));
-    } else {
-      setMyList([...myList, { ...item, media_type: type }]);
-    }
-  };
+  const toggleMyList = useCallback((item, type = 'movie') => {
+    setMyList((prev) => {
+      const exists = prev.some((i) => i.id === item.id);
+      if (exists) {
+        return prev.filter((i) => i.id !== item.id);
+      }
+      return [...prev, { ...item, media_type: type }];
+    });
+  }, []);
 
-  const isInMyList = (itemId) => myList.some((i) => i.id === itemId);
+  const isInMyList = useCallback((itemId) => myList.some((i) => i.id === itemId), [myList]);
 
-  const handleOpenDetails = (item, type = 'movie') => {
+  const handleOpenDetails = useCallback((item, type = 'movie') => {
     setSelectedItemType(type);
     setSelectedItem(item);
-  };
+  }, []);
 
-  const featuredItem = trendingList.length > 0 ? trendingList[0] : null;
+  const featuredItem = useMemo(() => (trendingList.length > 0 ? trendingList[0] : null), [trendingList]);
 
   return (
     <div
-      className="min-h-screen bg-[#08080a] text-zinc-100 antialiased pb-24 selection:bg-amber-500 selection:text-black font-sans"
+      className="min-h-screen bg-[#08080a] text-zinc-100 antialiased pb-24 font-sans selection:bg-amber-500 selection:text-black"
       dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}
     >
-      {/* 1. Header العصري المتكيف */}
+      {/* 1. Header */}
       <header
         className={`fixed top-0 inset-x-0 z-40 transition-all duration-300 ${
           scrolled
-            ? 'bg-[#08080a]/90 backdrop-blur-xl border-b border-white/5 py-3 shadow-2xl'
+            ? 'bg-[#08080a]/90 backdrop-blur-md border-b border-white/5 py-3 shadow-2xl'
             : 'bg-gradient-to-b from-black/90 via-black/40 to-transparent py-4'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 md:px-8 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-amber-200 p-[1px] shadow-lg shadow-amber-500/20">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-amber-200 p-[1px]">
               <div className="w-full h-full bg-black rounded-full flex items-center justify-center text-amber-300 font-bold text-sm">
                 👤
               </div>
@@ -222,7 +238,7 @@ export default function App() {
 
           <button
             onClick={() => setLang((prev) => (prev === 'ar-SA' ? 'en-US' : 'ar-SA'))}
-            className="text-amber-300 bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/50 px-3.5 py-1.5 rounded-full text-xs font-bold transition duration-300 backdrop-blur-md active:scale-95"
+            className="text-amber-300 bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/50 px-3.5 py-1.5 rounded-full text-xs font-bold transition active:scale-95"
           >
             {lang === 'ar-SA' ? 'English' : 'العربية'}
           </button>
@@ -231,7 +247,7 @@ export default function App() {
 
       <main className="pt-16 max-w-7xl mx-auto px-4 md:px-8 space-y-8">
         
-        {/* 2. شريط البحث الأصلي المحتفظ بمكانه */}
+        {/* 2. شريط البحث والتصنيف */}
         <div className="pt-2 space-y-3">
           <div className="relative max-w-2xl mx-auto">
             <input
@@ -243,7 +259,7 @@ export default function App() {
                 setSelectedGenre('');
                 setPage(1);
               }}
-              className="w-full bg-zinc-900/80 text-amber-50 placeholder-zinc-500 border border-white/10 focus:border-amber-500/50 px-5 py-3.5 pr-11 rounded-2xl focus:outline-none text-sm transition shadow-2xl backdrop-blur-md"
+              className="w-full bg-zinc-900/90 text-amber-50 placeholder-zinc-500 border border-white/10 focus:border-amber-500/50 px-5 py-3.5 pr-11 rounded-2xl focus:outline-none text-sm transition shadow-xl"
             />
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">🔍</span>
           </div>
@@ -269,7 +285,7 @@ export default function App() {
                   setTempGenre(selectedGenre);
                   setShowFilterModal(true);
                 }}
-                className="flex items-center gap-2 bg-zinc-900/80 text-amber-300 border border-amber-500/20 hover:border-amber-500/50 px-3.5 py-1.5 rounded-xl text-xs font-bold transition backdrop-blur-md active:scale-95"
+                className="flex items-center gap-2 bg-zinc-900/90 text-amber-300 border border-amber-500/20 hover:border-amber-500/50 px-3.5 py-1.5 rounded-xl text-xs font-bold transition active:scale-95"
               >
                 <span>⚙️</span>
                 <span>{lang === 'ar-SA' ? 'التصنيف' : 'Genres'}</span>
@@ -278,13 +294,11 @@ export default function App() {
           </div>
         </div>
 
-        {/* 3. العرض الرئيسي */}
+        {/* 3. الصفحة الرئيسية */}
         {activeTab === 'home' && !searchQuery && !selectedGenre ? (
-          
-          /* ==================== الرئيسية السلسة ==================== */
           <div className="space-y-10">
 
-            {/* 🔥 Hero Banner سينمائي متجاوب وسلس */}
+            {/* Hero Banner */}
             {loading ? (
               <HeroSkeleton />
             ) : (
@@ -294,7 +308,7 @@ export default function App() {
                     <img
                       src={`${BACKDROP_BASE_URL}${featuredItem.backdrop_path || featuredItem.poster_path}`}
                       alt={featuredItem.title || featuredItem.name}
-                      className="w-full h-full object-cover object-top transition duration-700 group-hover:scale-105"
+                      className="w-full h-full object-cover object-top transition duration-500 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#08080a] via-[#08080a]/50 to-transparent" />
                     <div className="absolute inset-0 bg-gradient-to-r from-[#08080a]/80 via-transparent to-transparent" />
@@ -307,24 +321,20 @@ export default function App() {
                         <span className="text-xs font-bold text-amber-200">
                           ★ {featuredItem.vote_average?.toFixed(1)}
                         </span>
-                        <span className="text-xs text-zinc-400">
-                          {featuredItem.release_date?.substring(0, 4) || featuredItem.first_air_date?.substring(0, 4)}
-                        </span>
                       </div>
 
-                      <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-white leading-tight drop-shadow-xl">
+                      <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-white leading-tight">
                         {featuredItem.title || featuredItem.name}
                       </h2>
 
-                      <p className="text-xs sm:text-sm text-zinc-300 line-clamp-2 sm:line-clamp-3 leading-relaxed font-normal">
+                      <p className="text-xs sm:text-sm text-zinc-300 line-clamp-2 sm:line-clamp-3">
                         {featuredItem.overview || (lang === 'ar-SA' ? 'فيلم سينمائي مميز متوفر للعرض الآن.' : 'Featured movie available now.')}
                       </p>
 
-                      {/* أزرار التشغيل والتريلر */}
                       <div className="flex items-center gap-3 pt-2">
                         <button
                           onClick={() => handlePlayTrailer(featuredItem, 'movie')}
-                          className="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-extrabold px-6 py-3 rounded-xl shadow-lg shadow-amber-500/20 text-xs sm:text-sm transition duration-300 active:scale-95"
+                          className="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-amber-500 text-black font-extrabold px-6 py-3 rounded-xl shadow-lg text-xs sm:text-sm transition active:scale-95"
                         >
                           <span>▶</span>
                           <span>{lang === 'ar-SA' ? 'شاهد التريلر' : 'Watch Trailer'}</span>
@@ -332,7 +342,7 @@ export default function App() {
 
                         <button
                           onClick={() => handleOpenDetails(featuredItem, 'movie')}
-                          className="flex items-center gap-2 bg-zinc-900/80 hover:bg-zinc-800 text-white font-bold px-5 py-3 rounded-xl border border-white/10 text-xs sm:text-sm transition backdrop-blur-md active:scale-95"
+                          className="flex items-center gap-2 bg-zinc-900/80 hover:bg-zinc-800 text-white font-bold px-5 py-3 rounded-xl border border-white/10 text-xs sm:text-sm transition active:scale-95"
                         >
                           <span>ℹ️</span>
                           <span>{lang === 'ar-SA' ? 'التفاصيل' : 'Details'}</span>
@@ -340,7 +350,7 @@ export default function App() {
 
                         <button
                           onClick={() => toggleMyList(featuredItem, 'movie')}
-                          className="w-11 h-11 bg-zinc-900/80 hover:bg-zinc-800 text-white font-bold rounded-xl border border-white/10 flex items-center justify-center transition backdrop-blur-md active:scale-95"
+                          className="w-11 h-11 bg-zinc-900/80 hover:bg-zinc-800 text-white font-bold rounded-xl border border-white/10 flex items-center justify-center transition active:scale-95"
                         >
                           {isInMyList(featuredItem.id) ? '✓' : '＋'}
                         </button>
@@ -351,9 +361,7 @@ export default function App() {
               )
             )}
 
-            {/* الأقسام بالترتيب */}
-
-            {/* 1. 🔥 الأكثر تداولاً */}
+            {/* الأقسام المختلفة */}
             <SectionRow
               title={lang === 'ar-SA' ? '🔥 الأكثر تداولاً هذا الأسبوع' : '🔥 Trending This Week'}
               items={trendingList}
@@ -366,7 +374,6 @@ export default function App() {
               lang={lang}
             />
 
-            {/* 2. 🎬 أحدث الأفلام */}
             <SectionRow
               title={lang === 'ar-SA' ? '🎬 أحدث الأفلام والقادمة قريباً' : '🎬 Latest Movies'}
               items={latestMoviesList}
@@ -379,7 +386,6 @@ export default function App() {
               lang={lang}
             />
 
-            {/* 3. ⭐ الأعلى تقييماً */}
             <SectionRow
               title={lang === 'ar-SA' ? '⭐ الأعلى تقييماً' : '⭐ Top Rated'}
               items={topRatedList}
@@ -392,7 +398,6 @@ export default function App() {
               lang={lang}
             />
 
-            {/* 4. 📺 المسلسلات الرائجة */}
             <SectionRow
               title={lang === 'ar-SA' ? '📺 المسلسلات الرائجة' : '📺 Popular TV Series'}
               items={trendingTvList}
@@ -405,7 +410,7 @@ export default function App() {
               lang={lang}
             />
 
-            {/* 5. 🏢 شركات الإنتاج مع عرض أفلامها بصفوف أفقية */}
+            {/* شركات الإنتاج بصفوف أفقية */}
             <div className="space-y-8 pt-4 border-t border-white/5">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🏢</span>
@@ -432,7 +437,7 @@ export default function App() {
           </div>
         ) : activeTab === 'mylist' ? (
           
-          /* ==================== قائمتي ==================== */
+          /* قائمتي */
           <div className="space-y-6">
             {myList.length === 0 ? (
               <div className="text-center py-20 text-zinc-500 space-y-3">
@@ -456,7 +461,7 @@ export default function App() {
           </div>
         ) : (
 
-          /* ==================== العرض الشبكي ==================== */
+          /* العرض الشبكي */
           <div className="space-y-6">
             {loading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -479,12 +484,11 @@ export default function App() {
                   ))}
                 </div>
 
-                {/* الترقيم */}
                 <div className="flex justify-center items-center gap-4 pt-6">
                   <button
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                    className="px-4 py-2 bg-zinc-900 border border-white/10 rounded-xl text-xs font-bold text-amber-200 disabled:opacity-30 hover:bg-zinc-800 transition active:scale-95"
+                    className="px-4 py-2 bg-zinc-900 border border-white/10 rounded-xl text-xs font-bold text-amber-200 disabled:opacity-30 active:scale-95"
                   >
                     {lang === 'ar-SA' ? 'السابق' : 'Prev'}
                   </button>
@@ -494,7 +498,7 @@ export default function App() {
                   <button
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => p + 1)}
-                    className="px-4 py-2 bg-zinc-900 border border-white/10 rounded-xl text-xs font-bold text-amber-200 disabled:opacity-30 hover:bg-zinc-800 transition active:scale-95"
+                    className="px-4 py-2 bg-zinc-900 border border-white/10 rounded-xl text-xs font-bold text-amber-200 disabled:opacity-30 active:scale-95"
                   >
                     {lang === 'ar-SA' ? 'التالي' : 'Next'}
                   </button>
@@ -506,8 +510,8 @@ export default function App() {
 
       </main>
 
-      {/* 4. Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 bg-[#08080a]/95 backdrop-blur-2xl border-t border-white/5 py-2 px-6 max-w-md md:max-w-xl mx-auto rounded-t-3xl shadow-2xl flex items-center justify-around">
+      {/* 4. Bottom Navigation */}
+      <nav className="fixed bottom-0 inset-x-0 z-40 bg-[#08080a]/95 border-t border-white/5 py-2 px-6 max-w-md md:max-w-xl mx-auto rounded-t-3xl shadow-2xl flex items-center justify-around">
         <NavButton
           active={activeTab === 'home' && !searchQuery && !selectedGenre}
           onClick={() => {
@@ -552,9 +556,9 @@ export default function App() {
         />
       </nav>
 
-      {/* 5. نافذة مشغّل التريلر المباشرة السريعة (Trailer Modal) */}
+      {/* 5. مشغل التريلر المباشر (Modal) */}
       {trailerKey && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
           <div className="relative w-full max-w-4xl aspect-video rounded-3xl overflow-hidden bg-black border border-white/10 shadow-2xl">
             <button
               onClick={() => setTrailerKey(null)}
@@ -575,7 +579,7 @@ export default function App() {
 
       {/* 6. Filter Modal */}
       {showFilterModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-[#121216] border border-white/10 rounded-3xl w-full max-w-sm p-6 space-y-5 shadow-2xl">
             <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <h3 className="text-sm font-bold text-amber-200">
@@ -615,7 +619,7 @@ export default function App() {
                 setPage(1);
                 setShowFilterModal(false);
               }}
-              className="w-full bg-gradient-to-r from-amber-400 to-amber-500 text-black font-extrabold py-3 rounded-2xl shadow-lg text-xs active:scale-95 transition"
+              className="w-full bg-gradient-to-r from-amber-400 to-amber-500 text-black font-extrabold py-3 rounded-2xl text-xs active:scale-95 transition"
             >
               {lang === 'ar-SA' ? 'تطبيق' : 'Apply'}
             </button>
@@ -623,12 +627,12 @@ export default function App() {
         </div>
       )}
 
-      {/* 7. Modal التفاصيل */}
+      {/* 7. Modal التفاصيل + زر التريلر المباشر */}
       {selectedItem && (
         <div className="fixed inset-0 z-50 bg-[#08080a] overflow-y-auto min-h-screen text-zinc-100">
           <button
             onClick={() => setSelectedItem(null)}
-            className="fixed top-5 right-5 z-50 bg-black/70 hover:bg-amber-500 hover:text-black text-amber-200 px-4 py-2 rounded-full backdrop-blur-md transition border border-white/10 text-xs font-bold shadow-2xl flex items-center gap-1.5 active:scale-95"
+            className="fixed top-5 right-5 z-50 bg-black/80 hover:bg-amber-500 hover:text-black text-amber-200 px-4 py-2 rounded-full transition border border-white/10 text-xs font-bold shadow-2xl flex items-center gap-1.5 active:scale-95"
           >
             ✕ {lang === 'ar-SA' ? 'إغلاق' : 'Close'}
           </button>
@@ -681,6 +685,8 @@ export default function App() {
               </div>
 
               <div className="max-w-4xl mx-auto px-6 mt-6 space-y-8">
+                
+                {/* قسم أزرار التفاعل (التريلر والتصنيفات والإضافة للقائمة) */}
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex flex-wrap gap-2">
                     {details?.genres?.map((g) => (
@@ -693,13 +699,24 @@ export default function App() {
                     ))}
                   </div>
 
-                  <button
-                    onClick={() => toggleMyList(details, selectedItemType)}
-                    className="flex items-center gap-2 bg-zinc-900 border border-white/10 text-white font-bold px-4 py-2 rounded-xl text-xs hover:border-amber-400 transition active:scale-95"
-                  >
-                    <span>{isInMyList(details?.id) ? '✓' : '＋'}</span>
-                    <span>{isInMyList(details?.id) ? (lang === 'ar-SA' ? 'في قائمتي' : 'In List') : (lang === 'ar-SA' ? 'أضف لقائمتي' : 'Add to List')}</span>
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {/* 🎬 زر التريلر الذهبي المضاف حديثاً داخل نافذة التفاصيل */}
+                    <button
+                      onClick={() => handlePlayTrailer(details, selectedItemType)}
+                      className="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-amber-500 text-black font-extrabold px-4 py-2.5 rounded-xl text-xs shadow-lg transition active:scale-95"
+                    >
+                      <span>▶</span>
+                      <span>{lang === 'ar-SA' ? 'شاهد التريلر' : 'Watch Trailer'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => toggleMyList(details, selectedItemType)}
+                      className="flex items-center gap-2 bg-zinc-900 border border-white/10 text-white font-bold px-4 py-2.5 rounded-xl text-xs hover:border-amber-400 transition active:scale-95"
+                    >
+                      <span>{isInMyList(details?.id) ? '✓' : '＋'}</span>
+                      <span>{isInMyList(details?.id) ? (lang === 'ar-SA' ? 'في قائمتي' : 'In List') : (lang === 'ar-SA' ? 'أضف لقائمتي' : 'Add to List')}</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -724,6 +741,7 @@ export default function App() {
                             src={actor.profile_path ? `${IMAGE_BASE_URL}${actor.profile_path}` : 'https://via.placeholder.com/100'}
                             alt={actor.name}
                             className="w-12 h-12 rounded-full object-cover mx-auto mb-1.5 border border-white/10"
+                            loading="lazy"
                           />
                           <p className="text-[11px] font-bold text-white truncate">{actor.name}</p>
                           <p className="text-[9px] text-zinc-400 truncate">{actor.character}</p>
@@ -741,9 +759,9 @@ export default function App() {
   );
 }
 
-// ---------------- مكونات فرعية أفقية ----------------
+// ---------------- مكونات فرعية ----------------
 
-function SectionRow({ title, items, loading, onItemClick, onPlayTrailer, isInMyList, toggleMyList, onViewAll, lang }) {
+const SectionRow = React.memo(({ title, items, loading, onItemClick, onPlayTrailer, isInMyList, toggleMyList, onViewAll, lang }) => {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -756,7 +774,7 @@ function SectionRow({ title, items, loading, onItemClick, onPlayTrailer, isInMyL
       </div>
 
       {loading ? (
-        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+        <div className="flex gap-4 overflow-x-auto pb-2">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex-shrink-0 w-32 sm:w-36">
               <CardSkeleton />
@@ -764,7 +782,7 @@ function SectionRow({ title, items, loading, onItemClick, onPlayTrailer, isInMyL
           ))}
         </div>
       ) : (
-        <div className="flex gap-3.5 overflow-x-auto pb-2 scrollbar-hide">
+        <div className="flex gap-3.5 overflow-x-auto pb-2">
           {items.map((item) => (
             <div key={item.id} className="flex-shrink-0 w-32 sm:w-36">
               <PosterCard
@@ -780,9 +798,9 @@ function SectionRow({ title, items, loading, onItemClick, onPlayTrailer, isInMyL
       )}
     </div>
   );
-}
+});
 
-function PosterCard({ item, onItemClick, onPlayTrailer, isInMyList, toggleMyList }) {
+const PosterCard = React.memo(({ item, onItemClick, onPlayTrailer, isInMyList, toggleMyList }) => {
   return (
     <div className="group relative cursor-pointer rounded-2xl overflow-hidden bg-zinc-900/80 border border-white/5 hover:border-amber-500/50 transition duration-300 shadow-md">
       <div className="aspect-[2/3] w-full overflow-hidden relative">
@@ -790,7 +808,7 @@ function PosterCard({ item, onItemClick, onPlayTrailer, isInMyList, toggleMyList
           <img
             src={`${IMAGE_BASE_URL}${item.poster_path}`}
             alt={item.title || item.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
             loading="lazy"
             onClick={onItemClick}
           />
@@ -800,17 +818,16 @@ function PosterCard({ item, onItemClick, onPlayTrailer, isInMyList, toggleMyList
           </div>
         )}
 
-        <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md text-amber-300 border border-amber-500/20 px-1.5 py-0.5 rounded-md text-[10px] font-bold">
+        <div className="absolute top-2 right-2 bg-black/80 text-amber-300 border border-amber-500/20 px-1.5 py-0.5 rounded-md text-[10px] font-bold">
           ★ {item.vote_average ? item.vote_average.toFixed(1) : 'N/A'}
         </div>
 
-        {/* زر تشغيل التريلر السريع من البطاقة */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             onPlayTrailer();
           }}
-          className="absolute inset-0 m-auto w-10 h-10 bg-amber-400/90 text-black rounded-full flex items-center justify-center text-sm font-black shadow-xl opacity-0 group-hover:opacity-100 transition duration-300 transform scale-90 group-hover:scale-100"
+          className="absolute inset-0 m-auto w-10 h-10 bg-amber-400 text-black rounded-full flex items-center justify-center text-sm font-black shadow-xl opacity-0 group-hover:opacity-100 transition duration-200 transform scale-90 group-hover:scale-100"
         >
           ▶
         </button>
@@ -820,12 +837,10 @@ function PosterCard({ item, onItemClick, onPlayTrailer, isInMyList, toggleMyList
             e.stopPropagation();
             toggleMyList();
           }}
-          className="absolute top-2 left-2 w-7 h-7 bg-black/70 backdrop-blur-md rounded-full border border-white/10 flex items-center justify-center text-xs text-white hover:bg-amber-400 hover:text-black transition active:scale-90"
+          className="absolute top-2 left-2 w-7 h-7 bg-black/80 rounded-full border border-white/10 flex items-center justify-center text-xs text-white hover:bg-amber-400 hover:text-black transition active:scale-90"
         >
           {isInMyList ? '✓' : '＋'}
         </button>
-
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 pointer-events-none" />
       </div>
 
       <div onClick={onItemClick} className="p-2 space-y-0.5">
@@ -838,16 +853,14 @@ function PosterCard({ item, onItemClick, onPlayTrailer, isInMyList, toggleMyList
       </div>
     </div>
   );
-}
+});
 
 function NavButton({ active, onClick, icon, label }) {
   return (
     <button
       onClick={onClick}
       className={`flex flex-col items-center gap-1 px-3 py-1 rounded-2xl transition duration-200 active:scale-90 ${
-        active
-          ? 'text-amber-400 font-bold scale-105'
-          : 'text-zinc-400 hover:text-zinc-200'
+        active ? 'text-amber-400 font-bold scale-105' : 'text-zinc-400 hover:text-zinc-200'
       }`}
     >
       <span className="text-lg">{icon}</span>
@@ -859,11 +872,11 @@ function NavButton({ active, onClick, icon, label }) {
 
 function CardSkeleton() {
   return (
-    <div className="rounded-2xl bg-zinc-900 border border-white/5 overflow-hidden animate-skeleton">
-      <div className="aspect-[2/3] bg-zinc-800" />
+    <div className="rounded-2xl bg-zinc-900 border border-white/5 overflow-hidden">
+      <div className="aspect-[2/3] bg-zinc-800 animate-pulse" />
       <div className="p-2 space-y-1.5">
-        <div className="h-3 bg-zinc-800 rounded w-3/4" />
-        <div className="h-2 bg-zinc-800 rounded w-1/2" />
+        <div className="h-3 bg-zinc-800 rounded w-3/4 animate-pulse" />
+        <div className="h-2 bg-zinc-800 rounded w-1/2 animate-pulse" />
       </div>
     </div>
   );
@@ -871,6 +884,6 @@ function CardSkeleton() {
 
 function HeroSkeleton() {
   return (
-    <div className="h-[380px] sm:h-[460px] bg-zinc-900 rounded-3xl animate-skeleton border border-white/5" />
+    <div className="h-[380px] sm:h-[460px] bg-zinc-900 rounded-3xl animate-pulse border border-white/5" />
   );
 }
