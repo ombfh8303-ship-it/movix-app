@@ -44,6 +44,9 @@ export default function App() {
   const [topRatedList, setTopRatedList] = useState([]);
   const [trendingTvList, setTrendingTvList] = useState([]);
 
+  // مؤشر البانر الرئيسي للتقليب التلقائي
+  const [heroIndex, setHeroIndex] = useState(0);
+
   // أفلام شركات الإنتاج (لكل شركة)
   const [studioMoviesMap, setStudioMoviesMap] = useState({});
 
@@ -122,6 +125,15 @@ export default function App() {
       loadHomeContent();
     }
   }, [activeTab, searchQuery, selectedGenre, selectedStudio, lang]);
+
+  // تقليب البانر الرئيسي تلقائياً كل 5 ثوانٍ
+  useEffect(() => {
+    if (trendingList.length === 0) return;
+    const interval = setInterval(() => {
+      setHeroIndex((prevIndex) => (prevIndex + 1) % Math.min(trendingList.length, 5));
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [trendingList]);
 
   // جلب المحتوى الشبكي (عند البحث، تصفح تصنيف، أو شركة)
   useEffect(() => {
@@ -214,7 +226,12 @@ export default function App() {
     setSelectedItem(item);
   }, []);
 
-  const featuredItem = useMemo(() => (trendingList.length > 0 ? trendingList[0] : null), [trendingList]);
+  const featuredItem = useMemo(() => {
+    if (trendingList.length > 0) {
+      return trendingList[heroIndex] || trendingList[0];
+    }
+    return null;
+  }, [trendingList, heroIndex]);
 
   const genresMap = useMemo(() => {
     const map = {};
@@ -226,7 +243,7 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen bg-[#090C10] text-[#F8FAFC] antialiased pb-28 font-sans max-w-md mx-auto relative overflow-hidden"
+      className="min-h-screen bg-[#05070A] text-[#F8FAFC] antialiased pb-20 font-sans max-w-md mx-auto relative overflow-hidden"
       dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}
     >
       {/* 1. الشريط العلوي Header */}
@@ -237,18 +254,18 @@ export default function App() {
           setSelectedStudio(null);
           setSearchQuery('');
         }}>
-          <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center text-white text-xs font-black shadow-md shadow-red-600/30">
+          <div className="w-8 h-8 rounded-lg bg-[#3B82F6] flex items-center justify-center text-white text-xs font-black shadow-md shadow-[#3B82F6]/30">
             ▶
           </div>
           <span className="text-lg font-black tracking-wider text-white">
-            MOV<span className="text-red-600">IX</span>
+            MOV<span className="text-[#3B82F6]">IX</span>
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={() => setLang((p) => (p === 'ar-SA' ? 'en-US' : 'ar-SA'))}
-            className="flex items-center gap-1 text-xs font-bold bg-[#161B22] border border-gray-800 px-3 py-1 rounded-full text-gray-300 active:scale-95 transition"
+            className="flex items-center gap-1 text-xs font-bold bg-[#111827] border border-[#1E293B] px-3 py-1 rounded-full text-[#94A3B8] active:scale-95 transition"
           >
             <span>{lang === 'ar-SA' ? 'EN' : 'العربية'}</span>
             <span>🌐</span>
@@ -259,13 +276,13 @@ export default function App() {
               setTempGenre(selectedGenre);
               setShowFilterModal(true);
             }}
-            className="text-white text-sm bg-[#161B22] p-2 rounded-full border border-gray-800 active:scale-95 transition"
+            className="text-white text-sm bg-[#111827] p-2 rounded-full border border-[#1E293B] active:scale-95 transition"
             title={lang === 'ar-SA' ? 'التصنيفات' : 'Filter Genres'}
           >
-            ⚙️
+            🔍
           </button>
 
-          <div className="w-8 h-8 rounded-full bg-[#161B22] border border-gray-800 flex items-center justify-center text-xs text-gray-300">
+          <div className="w-8 h-8 rounded-full bg-[#111827] border border-[#1E293B] flex items-center justify-center text-xs text-[#94A3B8]">
             👤
           </div>
         </div>
@@ -284,18 +301,18 @@ export default function App() {
               setSelectedStudio(null);
               setPage(1);
             }}
-            className="w-full bg-[#161B22] text-white placeholder-gray-500 border border-gray-800 focus:border-red-600 px-4 py-2.5 rounded-2xl text-xs focus:outline-none transition"
+            className="w-full bg-[#111827] text-white placeholder-[#94A3B8] border border-[#1E293B] focus:border-[#3B82F6] px-4 py-2.5 rounded-2xl text-xs focus:outline-none transition"
           />
-          <span className={`absolute top-1/2 -translate-y-1/2 text-gray-400 text-xs ${lang === 'ar-SA' ? 'left-3' : 'right-3'}`}>🔍</span>
+          <span className={`absolute top-1/2 -translate-y-1/2 text-[#94A3B8] text-xs ${lang === 'ar-SA' ? 'left-3' : 'right-3'}`}>🔍</span>
         </div>
       </div>
 
-      <main className="px-4 pt-4 space-y-7">
+      <main className="px-4 pt-4 space-y-6">
 
         {/* 3. شريط اختيار شركات الإنتاج السريع */}
         {!searchQuery && (
           <div className="space-y-2.5">
-            <h3 className="text-sm font-extrabold text-gray-300 border-r-4 border-red-600 pr-2">
+            <h3 className="text-sm font-extrabold text-[#F8FAFC] border-r-4 border-[#3B82F6] pr-2">
               {lang === 'ar-SA' ? 'تصفح حسب الشركة' : 'Browse by Studio'}
             </h3>
             <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
@@ -316,8 +333,8 @@ export default function App() {
                     }}
                     className={`flex-shrink-0 px-3.5 py-1.5 rounded-xl border flex items-center justify-center gap-1.5 transition active:scale-95 ${
                       isSelected
-                        ? 'bg-red-600 border-red-600 text-white font-black shadow-lg shadow-red-600/30'
-                        : 'bg-[#161B22] border-gray-800 hover:border-gray-700 text-gray-300'
+                        ? 'bg-[#3B82F6] border-[#3B82F6] text-white font-black shadow-lg shadow-[#3B82F6]/30'
+                        : 'bg-[#111827] border-[#1E293B] hover:border-gray-700 text-[#94A3B8]'
                     }`}
                   >
                     <span className="text-xs font-bold">{studio.name}</span>
@@ -328,45 +345,47 @@ export default function App() {
           </div>
         )}
 
-        {/* 4. البانر الرئيسي (Hero Section) */}
+        {/* 4. البانر الرئيسي (Hero Section) المزود بالتبديل التلقائي */}
         {activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && (
           loading ? (
-            <div className="h-[320px] bg-[#161B22] rounded-3xl animate-pulse" />
+            <div className="h-[340px] bg-[#111827] rounded-3xl animate-pulse" />
           ) : (
             featuredItem && (
-              <div className="relative rounded-3xl overflow-hidden bg-[#161B22] border border-gray-800 shadow-xl">
-                <div className="relative h-[320px] w-full">
+              <div className="relative rounded-3xl overflow-hidden bg-[#111827] border border-[#1E293B] shadow-xl transition-all duration-500">
+                <div className="relative h-[340px] w-full">
                   <img
                     src={`${BACKDROP_BASE_URL}${featuredItem.backdrop_path || featuredItem.poster_path}`}
                     alt={featuredItem.title || featuredItem.name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover transition-all duration-700"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#090C10] via-[#090C10]/40 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#05070A] via-[#05070A]/50 to-transparent" />
 
                   <div className="absolute bottom-4 inset-x-4 space-y-2">
-                    <div className="inline-block bg-red-600/20 border border-red-600/40 text-red-400 text-[10px] px-2.5 py-0.5 rounded-full font-bold">
-                      🔥 {lang === 'ar-SA' ? 'المستحب حالياً' : 'Featured'}
+                    <div className="inline-block bg-[#3B82F6]/20 border border-[#3B82F6]/40 text-[#60A5FA] text-[10px] px-2.5 py-0.5 rounded-full font-bold">
+                      {featuredItem.genre_ids && featuredItem.genre_ids.length > 0 ? genresMap[featuredItem.genre_ids[0]] || 'مغامرة' : 'مغامرة'}
                     </div>
 
-                    <h2 className="text-xl font-black text-white truncate">
+                    <h2 className="text-2xl font-black text-white truncate">
                       {featuredItem.title || featuredItem.name}
                     </h2>
 
-                    <div className="flex items-center gap-2 text-[11px] text-gray-400 font-medium">
+                    <div className="flex items-center gap-2 text-[11px] text-[#94A3B8] font-medium">
+                      <span>{featuredItem.genre_ids?.map((id) => genresMap[id]).filter(Boolean).slice(0, 2).join(' • ') || 'مغامرة • عائلي'}</span>
+                      <span>•</span>
                       <span>{featuredItem.release_date?.substring(0, 4) || '2026'}</span>
-                      <span className="bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1">
+                      <span className="bg-[#3B82F6]/20 border border-[#3B82F6]/30 text-[#60A5FA] px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1">
                         ★ {featuredItem.vote_average?.toFixed(1) || '7.8'}
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed pt-1">
-                      {featuredItem.overview || (lang === 'ar-SA' ? 'لا يوجد وصف متاح.' : 'No description available.')}
+                    <p className="text-[11px] text-[#94A3B8] line-clamp-2 leading-relaxed pt-1">
+                      {featuredItem.overview || (lang === 'ar-SA' ? 'رحلة جديدة عبر المحيط...' : 'No description available.')}
                     </p>
 
                     <div className="grid grid-cols-2 gap-2 pt-2">
                       <button
                         onClick={() => handlePlayTrailer(featuredItem, 'movie')}
-                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
+                        className="bg-[#3B82F6] hover:bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
                       >
                         <span>▶</span>
                         <span>{lang === 'ar-SA' ? 'شاهد الآن' : 'Watch Now'}</span>
@@ -374,12 +393,26 @@ export default function App() {
 
                       <button
                         onClick={() => toggleMyList(featuredItem, 'movie')}
-                        className="bg-[#161B22] border border-gray-800 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
+                        className="bg-[#0F172A] border border-[#1E293B] text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
                       >
                         <span>{isInMyList(featuredItem.id) ? '✓' : '＋'}</span>
-                        <span>{isInMyList(featuredItem.id) ? (lang === 'ar-SA' ? 'في قائمتي' : 'In List') : (lang === 'ar-SA' ? 'أضف لقائمتي' : 'Add to List')}</span>
+                        <span>{isInMyList(featuredItem.id) ? (lang === 'ar-SA' ? 'في قائمتي' : 'In List') : (lang === 'ar-SA' ? 'أضف إلى قائمتي' : 'Add to List')}</span>
                       </button>
                     </div>
+
+                    {/* مؤشر النقاط للتقليب التلقائي */}
+                    <div className="flex justify-center items-center gap-1.5 pt-2">
+                      {trendingList.slice(0, 5).map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setHeroIndex(idx)}
+                          className={`h-1.5 rounded-full transition-all duration-300 ${
+                            idx === heroIndex ? 'w-5 bg-[#3B82F6]' : 'w-1.5 bg-gray-600/50'
+                          }`}
+                        />
+                      ))}
+                    </div>
+
                   </div>
                 </div>
               </div>
@@ -389,7 +422,7 @@ export default function App() {
 
         {/* 5. أقسام العرض الأفقي بالصفحة الرئيسية */}
         {activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && (
-          <div className="space-y-7">
+          <div className="space-y-6">
             <HorizontalSection
               title={lang === 'ar-SA' ? '🔥 الأكثر تداولاً' : '🔥 Trending'}
               items={trendingList}
@@ -431,8 +464,8 @@ export default function App() {
             />
 
             {/* صفوف أفلام شركات الإنتاج العالمية */}
-            <div className="pt-2 space-y-7 border-t border-gray-800/80">
-              <h2 className="text-base font-black text-white tracking-wide border-r-4 border-red-600 pr-2">
+            <div className="pt-2 space-y-6 border-t border-[#1E293B]">
+              <h2 className="text-base font-black text-white tracking-wide border-r-4 border-[#3B82F6] pr-2">
                 {lang === 'ar-SA' ? '🏢 أعمال شركات الإنتاج' : '🏢 Production Studios Content'}
               </h2>
 
@@ -463,12 +496,12 @@ export default function App() {
         {/* 6. عرض قائمة "قائمتي" */}
         {activeTab === 'mylist' && !searchQuery && (
           <div className="space-y-4 pt-2">
-            <h3 className="text-base font-black text-white border-r-4 border-red-600 pr-2">
+            <h3 className="text-base font-black text-white border-r-4 border-[#3B82F6] pr-2">
               {lang === 'ar-SA' ? 'قائمتي المفضلّة' : 'My List'}
             </h3>
 
             {myList.length === 0 ? (
-              <div className="text-center py-16 text-gray-500 space-y-2">
+              <div className="text-center py-16 text-[#94A3B8] space-y-2">
                 <span className="text-3xl block">🔖</span>
                 <p className="text-xs">{lang === 'ar-SA' ? 'لم تقم بإضافة أي أعمال لقائمتك بعد.' : 'No items added to your list yet.'}</p>
               </div>
@@ -491,7 +524,7 @@ export default function App() {
         {(activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio) && activeTab !== 'mylist' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-black text-white border-r-4 border-red-600 pr-2">
+              <h3 className="text-base font-black text-white border-r-4 border-[#3B82F6] pr-2">
                 {searchQuery
                   ? (lang === 'ar-SA' ? 'نتائج البحث' : 'Search Results')
                   : selectedStudio
@@ -509,7 +542,7 @@ export default function App() {
                     setSelectedGenre('');
                     setSelectedStudio(null);
                   }}
-                  className="text-[10px] text-red-400 bg-red-600/10 px-2.5 py-1 rounded-full border border-red-600/30"
+                  className="text-[10px] text-[#60A5FA] bg-[#3B82F6]/10 px-2.5 py-1 rounded-full border border-[#3B82F6]/30"
                 >
                   {lang === 'ar-SA' ? 'إلغاء الفلتر ✕' : 'Clear Filter ✕'}
                 </button>
@@ -519,7 +552,7 @@ export default function App() {
             {loading ? (
               <div className="grid grid-cols-2 gap-3">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="bg-[#161B22] rounded-2xl h-48 animate-pulse" />
+                  <div key={i} className="bg-[#111827] rounded-2xl h-48 animate-pulse" />
                 ))}
               </div>
             ) : (
@@ -540,17 +573,17 @@ export default function App() {
                   <button
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                    className="px-3 py-1.5 bg-[#161B22] border border-gray-800 rounded-xl text-xs font-bold text-gray-300 disabled:opacity-30 active:scale-95"
+                    className="px-3 py-1.5 bg-[#111827] border border-[#1E293B] rounded-xl text-xs font-bold text-[#94A3B8] disabled:opacity-30 active:scale-95"
                   >
                     {lang === 'ar-SA' ? 'السابق' : 'Prev'}
                   </button>
-                  <span className="text-xs font-bold text-gray-500">
+                  <span className="text-xs font-bold text-[#94A3B8]">
                     {page} / {totalPages}
                   </span>
                   <button
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => p + 1)}
-                    className="px-3 py-1.5 bg-[#161B22] border border-gray-800 rounded-xl text-xs font-bold text-gray-300 disabled:opacity-30 active:scale-95"
+                    className="px-3 py-1.5 bg-[#111827] border border-[#1E293B] rounded-xl text-xs font-bold text-[#94A3B8] disabled:opacity-30 active:scale-95"
                   >
                     {lang === 'ar-SA' ? 'التالي' : 'Next'}
                   </button>
@@ -562,11 +595,15 @@ export default function App() {
 
       </main>
 
-      {/* 8. الشريط السفلي Navigation Bar المُحسّن والأكثر احترافية */}
-      <div className="fixed bottom-3 inset-x-0 mx-auto max-w-sm px-4 z-40">
-        <nav className="bg-[#161B22]/95 border border-gray-700/80 backdrop-blur-xl rounded-2xl py-2 px-2 flex items-center justify-around shadow-2xl shadow-black/80">
+      {/* 8. الشريط السفلي Navigation Bar التابح للهاتف تماماً كما بالصورة */}
+      <div className="fixed bottom-0 inset-x-0 mx-auto max-w-md bg-[#05070A]/95 border-t border-[#1E293B] backdrop-blur-md z-40 py-2">
+        <nav className="flex items-center justify-around px-2">
           <NavItem
-            icon="🏠"
+            icon={
+              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+              </svg>
+            }
             label={lang === 'ar-SA' ? 'الرئيسية' : 'Home'}
             active={activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio}
             onClick={() => {
@@ -577,7 +614,11 @@ export default function App() {
             }}
           />
           <NavItem
-            icon="🎬"
+            icon={
+              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>
+              </svg>
+            }
             label={lang === 'ar-SA' ? 'الأفلام' : 'Movies'}
             active={activeTab === 'movies' && !searchQuery && !selectedGenre && !selectedStudio}
             onClick={() => {
@@ -589,7 +630,11 @@ export default function App() {
             }}
           />
           <NavItem
-            icon="📺"
+            icon={
+              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
+              </svg>
+            }
             label={lang === 'ar-SA' ? 'المسلسلات' : 'TV Series'}
             active={activeTab === 'tv' && !searchQuery && !selectedGenre && !selectedStudio}
             onClick={() => {
@@ -601,7 +646,11 @@ export default function App() {
             }}
           />
           <NavItem
-            icon="♡"
+            icon={
+              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+            }
             label={lang === 'ar-SA' ? 'قائمتي' : 'My List'}
             active={activeTab === 'mylist'}
             onClick={() => {
@@ -617,19 +666,19 @@ export default function App() {
       {/* 9. نافذة اختيار التصنيفات (Filter Modal) */}
       {showFilterModal && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-[#161B22] border border-gray-800 rounded-3xl w-full max-w-xs p-5 space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-gray-800 pb-2.5">
+          <div className="bg-[#111827] border border-[#1E293B] rounded-3xl w-full max-w-xs p-5 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-[#1E293B] pb-2.5">
               <h3 className="text-xs font-bold text-white">
                 {lang === 'ar-SA' ? 'اختر التصنيف' : 'Select Genre'}
               </h3>
-              <button onClick={() => setShowFilterModal(false)} className="text-gray-400 hover:text-white text-xs">✕</button>
+              <button onClick={() => setShowFilterModal(false)} className="text-[#94A3B8] hover:text-white text-xs">✕</button>
             </div>
 
             <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
               <button
                 onClick={() => setTempGenre('')}
                 className={`py-2 rounded-xl text-xs font-bold border transition ${
-                  tempGenre === '' ? 'bg-red-600 text-white border-red-600' : 'bg-[#090C10] text-gray-400 border-gray-800'
+                  tempGenre === '' ? 'bg-[#3B82F6] text-white border-[#3B82F6]' : 'bg-[#05070A] text-[#94A3B8] border-[#1E293B]'
                 }`}
               >
                 {lang === 'ar-SA' ? 'الكل' : 'All'}
@@ -640,8 +689,8 @@ export default function App() {
                   onClick={() => setTempGenre(g.id)}
                   className={`py-2 rounded-xl text-xs font-bold truncate border px-1 transition ${
                     String(tempGenre) === String(g.id)
-                      ? 'bg-red-600 text-white border-red-600'
-                      : 'bg-[#090C10] text-gray-400 border-gray-800'
+                      ? 'bg-[#3B82F6] text-white border-[#3B82F6]'
+                      : 'bg-[#05070A] text-[#94A3B8] border-[#1E293B]'
                   }`}
                 >
                   {g.name}
@@ -657,7 +706,7 @@ export default function App() {
                 setPage(1);
                 setShowFilterModal(false);
               }}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-extrabold py-2.5 rounded-2xl text-xs active:scale-95 transition"
+              className="w-full bg-[#3B82F6] hover:bg-blue-600 text-white font-extrabold py-2.5 rounded-2xl text-xs active:scale-95 transition"
             >
               {lang === 'ar-SA' ? 'تطبيق' : 'Apply'}
             </button>
@@ -667,21 +716,21 @@ export default function App() {
 
       {/* 10. نافذة التفاصيل الفردية (Details Modal) */}
       {selectedItem && (
-        <div className="fixed inset-0 z-50 bg-[#090C10] overflow-y-auto min-h-screen text-[#F8FAFC]">
+        <div className="fixed inset-0 z-50 bg-[#05070A] overflow-y-auto min-h-screen text-[#F8FAFC]">
           <button
             onClick={() => setSelectedItem(null)}
-            className={`fixed top-4 z-50 bg-[#161B22]/90 hover:bg-red-600 text-white px-3.5 py-1.5 rounded-full transition border border-gray-800 text-xs font-bold shadow-2xl flex items-center gap-1 active:scale-95 ${lang === 'ar-SA' ? 'left-4' : 'right-4'}`}
+            className={`fixed top-4 z-50 bg-[#111827]/90 hover:bg-[#3B82F6] text-white px-3.5 py-1.5 rounded-full transition border border-[#1E293B] text-xs font-bold shadow-2xl flex items-center gap-1 active:scale-95 ${lang === 'ar-SA' ? 'left-4' : 'right-4'}`}
           >
             ✕ {lang === 'ar-SA' ? 'إغلاق' : 'Close'}
           </button>
 
           {detailsLoading ? (
             <div className="flex justify-center items-center h-screen">
-              <div className="animate-spin rounded-full h-8 w-8 border-2 border-red-600 border-t-transparent"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#3B82F6] border-t-transparent"></div>
             </div>
           ) : (
             <div className="pb-20">
-              <div className="relative w-full h-[320px] bg-[#090C10]">
+              <div className="relative w-full h-[320px] bg-[#05070A]">
                 {details?.backdrop_path ? (
                   <img
                     src={`${BACKDROP_BASE_URL}${details.backdrop_path}`}
@@ -689,16 +738,16 @@ export default function App() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">No Image</div>
+                  <div className="w-full h-full flex items-center justify-center text-[#94A3B8] text-xs">No Image</div>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#090C10] via-[#090C10]/50 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#05070A] via-[#05070A]/50 to-transparent" />
 
                 <div className="absolute bottom-4 px-4 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="bg-amber-500 text-black font-extrabold px-1.5 py-0.5 rounded text-[10px]">
+                    <span className="bg-[#3B82F6] text-white font-extrabold px-1.5 py-0.5 rounded text-[10px]">
                       ★ {details?.vote_average?.toFixed(1) || '0.0'}
                     </span>
-                    <span className="text-[11px] text-gray-400">
+                    <span className="text-[11px] text-[#94A3B8]">
                       {details?.release_date?.substring(0, 4) || details?.first_air_date?.substring(0, 4)}
                     </span>
                   </div>
@@ -714,7 +763,7 @@ export default function App() {
                     {details?.genres?.map((g) => (
                       <span
                         key={g.id}
-                        className="bg-[#161B22] text-gray-300 px-2.5 py-0.5 rounded-lg text-[10px] font-semibold border border-gray-800"
+                        className="bg-[#111827] text-[#94A3B8] px-2.5 py-0.5 rounded-lg text-[10px] font-semibold border border-[#1E293B]"
                       >
                         {g.name}
                       </span>
@@ -724,14 +773,14 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => toggleMyList(details, selectedItemType)}
-                      className="bg-[#161B22] border border-gray-800 text-white font-bold px-3 py-2 rounded-xl text-xs active:scale-95 transition"
+                      className="bg-[#111827] border border-[#1E293B] text-white font-bold px-3 py-2 rounded-xl text-xs active:scale-95 transition"
                     >
                       {isInMyList(details?.id) ? '✓' : '＋'}
                     </button>
 
                     <button
                       onClick={() => handlePlayTrailer(details, selectedItemType)}
-                      className="bg-red-600 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1 active:scale-95 transition"
+                      className="bg-[#3B82F6] text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1 active:scale-95 transition"
                     >
                       <span>▶</span>
                       <span>{lang === 'ar-SA' ? 'التريلر' : 'Trailer'}</span>
@@ -740,10 +789,10 @@ export default function App() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <h3 className={`text-xs font-bold text-white border-l-2 border-red-600 ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
+                  <h3 className={`text-xs font-bold text-white border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
                     {lang === 'ar-SA' ? 'القصة' : 'Overview'}
                   </h3>
-                  <p className="text-gray-400 text-xs leading-relaxed">
+                  <p className="text-[#94A3B8] text-xs leading-relaxed">
                     {details?.overview || (lang === 'ar-SA' ? 'لا يوجد وصف متاح.' : 'No overview available.')}
                   </p>
                 </div>
@@ -751,12 +800,12 @@ export default function App() {
                 {/* طاقم التمثيل */}
                 {details?.credits?.cast?.length > 0 && (
                   <div className="space-y-2">
-                    <h3 className={`text-xs font-bold text-white border-l-2 border-red-600 ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
+                    <h3 className={`text-xs font-bold text-white border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
                       {lang === 'ar-SA' ? 'طاقم التمثيل' : 'Cast'}
                     </h3>
                     <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
                       {details.credits.cast.slice(0, 6).map((actor) => (
-                        <div key={actor.id} className="flex-shrink-0 w-20 bg-[#161B22] rounded-xl p-2 text-center border border-gray-800">
+                        <div key={actor.id} className="flex-shrink-0 w-20 bg-[#111827] rounded-xl p-2 text-center border border-[#1E293B]">
                           <img
                             src={actor.profile_path ? `${IMAGE_BASE_URL}${actor.profile_path}` : 'https://via.placeholder.com/100?text=Actor'}
                             alt={actor.name}
@@ -778,10 +827,10 @@ export default function App() {
       {/* 11. مشغل التريلر المباشر */}
       {trailerKey && (
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-3 backdrop-blur-sm">
-          <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-gray-800">
+          <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-[#1E293B]">
             <button
               onClick={() => setTrailerKey(null)}
-              className="absolute top-2 right-2 bg-red-600 text-white w-7 h-7 rounded-full text-xs font-bold z-10 active:scale-95 flex items-center justify-center"
+              className="absolute top-2 right-2 bg-[#3B82F6] text-white w-7 h-7 rounded-full text-xs font-bold z-10 active:scale-95 flex items-center justify-center"
             >
               ✕
             </button>
@@ -805,11 +854,11 @@ function HorizontalSection({ title, items, genresMap, loading, onItemClick, onVi
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-black text-white tracking-wide border-r-4 border-red-600 pr-2">
+        <h3 className="text-base font-black text-white tracking-wide border-r-4 border-[#3B82F6] pr-2">
           {title}
         </h3>
         {onViewAll && (
-          <button onClick={onViewAll} className="text-xs text-red-500 hover:text-red-400 font-bold active:scale-95 transition">
+          <button onClick={onViewAll} className="text-xs text-[#60A5FA] hover:text-blue-400 font-bold active:scale-95 transition">
             {lang === 'ar-SA' ? 'عرض الكل >' : 'See All >'}
           </button>
         )}
@@ -818,7 +867,7 @@ function HorizontalSection({ title, items, genresMap, loading, onItemClick, onVi
       {loading ? (
         <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="w-28 h-40 bg-[#161B22] rounded-2xl animate-pulse flex-shrink-0" />
+            <div key={i} className="w-28 h-40 bg-[#111827] rounded-2xl animate-pulse flex-shrink-0" />
           ))}
         </div>
       ) : (
@@ -840,9 +889,9 @@ function MovieCard({ item, genresMap = {}, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="bg-[#161B22] rounded-2xl overflow-hidden border border-gray-800 hover:border-gray-700 transition cursor-pointer space-y-1.5 p-1 group active:scale-95"
+      className="bg-[#111827] rounded-2xl overflow-hidden border border-[#1E293B] hover:border-gray-700 transition cursor-pointer space-y-1.5 p-1 group active:scale-95"
     >
-      <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[#090C10]">
+      <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[#05070A]">
         {item.poster_path ? (
           <img
             src={`${IMAGE_BASE_URL}${item.poster_path}`}
@@ -851,17 +900,17 @@ function MovieCard({ item, genresMap = {}, onClick }) {
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-500 text-[9px]">No Image</div>
+          <div className="w-full h-full flex items-center justify-center text-[#94A3B8] text-[9px]">No Image</div>
         )}
-        <div className="absolute top-1.5 right-1.5 bg-black/80 border border-gray-800 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold text-white flex items-center gap-0.5">
+        <div className="absolute top-1.5 right-1.5 bg-black/80 border border-[#1E293B] px-1.5 py-0.5 rounded-md text-[9px] font-extrabold text-white flex items-center gap-0.5">
           <span>{item.vote_average ? item.vote_average.toFixed(1) : '7.5'}</span>
-          <span className="text-amber-400">★</span>
+          <span className="text-[#3B82F6]">★</span>
         </div>
       </div>
 
       <div className="px-1 pb-1 space-y-0.5">
         <h4 className="text-[11px] font-bold text-white truncate">{item.title || item.name}</h4>
-        <div className="flex items-center gap-1 text-[9px] text-gray-400">
+        <div className="flex items-center gap-1 text-[9px] text-[#94A3B8]">
           <span>{item.release_date?.substring(0, 4) || item.first_air_date?.substring(0, 4) || '2026'}</span>
           {genreName && (
             <>
@@ -879,14 +928,14 @@ function NavItem({ icon, label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl transition duration-200 active:scale-95 ${
+      className={`flex flex-col items-center gap-1 px-3 py-1 transition duration-200 active:scale-95 ${
         active
-          ? 'bg-red-600/15 text-red-500 font-black scale-105 border border-red-600/30'
-          : 'text-gray-400 hover:text-white font-medium'
+          ? 'text-[#3B82F6] font-black'
+          : 'text-[#94A3B8] hover:text-white font-medium'
       }`}
     >
-      <span className="text-lg leading-none">{icon}</span>
-      <span className="text-[11px] tracking-wide">{label}</span>
+      <div className="w-5 h-5">{icon}</div>
+      <span className="text-[10px] tracking-wide">{label}</span>
     </button>
   );
 }
