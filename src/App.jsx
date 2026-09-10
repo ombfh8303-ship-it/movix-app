@@ -44,6 +44,9 @@ export default function App() {
   const [topRatedList, setTopRatedList] = useState([]);
   const [trendingTvList, setTrendingTvList] = useState([]);
 
+  // أفلام شركات الإنتاج (لكل شركة)
+  const [studioMoviesMap, setStudioMoviesMap] = useState({});
+
   // بيانات الشبكة والبحث
   const [gridItems, setGridItems] = useState([]);
   const [page, setPage] = useState(1);
@@ -78,7 +81,7 @@ export default function App() {
     getGenresList();
   }, [activeTab, lang]);
 
-  // جلب محتوى الصفحة الرئيسية
+  // جلب محتوى الصفحة الرئيسية (الأقسام الرئيسية + أعمال شركات الإنتاج)
   useEffect(() => {
     if (activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio) {
       const loadHomeContent = async () => {
@@ -95,6 +98,21 @@ export default function App() {
           setLatestMoviesList(upcoming?.results || []);
           setTopRatedList(topRated?.results || []);
           setTrendingTvList(tvTrending?.results || []);
+
+          // جلب أفلام الشركات بشكل متوازي
+          const studioPromises = STUDIOS.map((s) =>
+            fetchByGenre('movie', '', 1, lang, s.id).then((res) => ({
+              id: s.id,
+              items: res?.results || []
+            }))
+          );
+          const studioResults = await Promise.all(studioPromises);
+          const sMap = {};
+          studioResults.forEach((sr) => {
+            sMap[sr.id] = sr.items;
+          });
+          setStudioMoviesMap(sMap);
+
         } catch (err) {
           console.error('Error fetching home content:', err);
         } finally {
@@ -272,13 +290,13 @@ export default function App() {
         </div>
       </div>
 
-      <main className="px-4 pt-4 space-y-6">
+      <main className="px-4 pt-4 space-y-7">
 
-        {/* 3. شريط شركات الإنتاج العالمية (Studios / Production Companies) */}
+        {/* 3. شريط اختيار شركات الإنتاج السريع */}
         {!searchQuery && (
-          <div className="space-y-2">
-            <h3 className="text-xs font-bold text-gray-400">
-              {lang === 'ar-SA' ? 'شركات الإنتاج' : 'Studios'}
+          <div className="space-y-2.5">
+            <h3 className="text-sm font-extrabold text-gray-300 border-r-4 border-red-600 pr-2">
+              {lang === 'ar-SA' ? 'تصفح حسب الشركة' : 'Browse by Studio'}
             </h3>
             <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
               {STUDIOS.map((studio) => {
@@ -296,9 +314,9 @@ export default function App() {
                         setPage(1);
                       }
                     }}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-xl border flex items-center justify-center gap-1.5 transition active:scale-95 ${
+                    className={`flex-shrink-0 px-3.5 py-1.5 rounded-xl border flex items-center justify-center gap-1.5 transition active:scale-95 ${
                       isSelected
-                        ? 'bg-red-600/20 border-red-600 text-white'
+                        ? 'bg-red-600 border-red-600 text-white font-black shadow-lg shadow-red-600/30'
                         : 'bg-[#161B22] border-gray-800 hover:border-gray-700 text-gray-300'
                     }`}
                   >
@@ -371,7 +389,7 @@ export default function App() {
 
         {/* 5. أقسام العرض الأفقي بالصفحة الرئيسية */}
         {activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && (
-          <div className="space-y-6">
+          <div className="space-y-7">
             <HorizontalSection
               title={lang === 'ar-SA' ? '🔥 الأكثر تداولاً' : '🔥 Trending'}
               items={trendingList}
@@ -411,13 +429,41 @@ export default function App() {
               onViewAll={() => setActiveTab('tv')}
               lang={lang}
             />
+
+            {/* صفوف أفلام شركات الإنتاج العالمية */}
+            <div className="pt-2 space-y-7 border-t border-gray-800/80">
+              <h2 className="text-base font-black text-white tracking-wide border-r-4 border-red-600 pr-2">
+                {lang === 'ar-SA' ? '🏢 أعمال شركات الإنتاج' : '🏢 Production Studios Content'}
+              </h2>
+
+              {STUDIOS.map((studio) => {
+                const studioItems = studioMoviesMap[studio.id] || [];
+                if (studioItems.length === 0 && !loading) return null;
+
+                return (
+                  <HorizontalSection
+                    key={studio.id}
+                    title={`🎬 ${studio.name}`}
+                    items={studioItems}
+                    genresMap={genresMap}
+                    loading={loading}
+                    onItemClick={(item) => handleOpenDetails(item, 'movie')}
+                    onViewAll={() => {
+                      setSelectedStudio(studio);
+                      setActiveTab('movies');
+                    }}
+                    lang={lang}
+                  />
+                );
+              })}
+            </div>
           </div>
         )}
 
         {/* 6. عرض قائمة "قائمتي" */}
         {activeTab === 'mylist' && !searchQuery && (
           <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-bold text-white">
+            <h3 className="text-base font-black text-white border-r-4 border-red-600 pr-2">
               {lang === 'ar-SA' ? 'قائمتي المفضلّة' : 'My List'}
             </h3>
 
@@ -445,7 +491,7 @@ export default function App() {
         {(activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio) && activeTab !== 'mylist' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">
+              <h3 className="text-base font-black text-white border-r-4 border-red-600 pr-2">
                 {searchQuery
                   ? (lang === 'ar-SA' ? 'نتائج البحث' : 'Search Results')
                   : selectedStudio
@@ -516,9 +562,9 @@ export default function App() {
 
       </main>
 
-      {/* 8. الشريط السفلي Navigation Bar */}
+      {/* 8. الشريط السفلي Navigation Bar المُحسّن والأكثر احترافية */}
       <div className="fixed bottom-3 inset-x-0 mx-auto max-w-sm px-4 z-40">
-        <nav className="bg-[#161B22]/90 border border-gray-800 backdrop-blur-md rounded-2xl py-2 px-3 flex items-center justify-around shadow-2xl">
+        <nav className="bg-[#161B22]/95 border border-gray-700/80 backdrop-blur-xl rounded-2xl py-2 px-2 flex items-center justify-around shadow-2xl shadow-black/80">
           <NavItem
             icon="🏠"
             label={lang === 'ar-SA' ? 'الرئيسية' : 'Home'}
@@ -757,11 +803,13 @@ export default function App() {
 
 function HorizontalSection({ title, items, genresMap, loading, onItemClick, onViewAll, lang }) {
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-black text-white">{title}</h3>
+        <h3 className="text-base font-black text-white tracking-wide border-r-4 border-red-600 pr-2">
+          {title}
+        </h3>
         {onViewAll && (
-          <button onClick={onViewAll} className="text-[10px] text-gray-400 font-bold active:scale-95 transition">
+          <button onClick={onViewAll} className="text-xs text-red-500 hover:text-red-400 font-bold active:scale-95 transition">
             {lang === 'ar-SA' ? 'عرض الكل >' : 'See All >'}
           </button>
         )}
@@ -831,12 +879,14 @@ function NavItem({ icon, label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition active:scale-90 ${
-        active ? 'text-red-500 font-bold' : 'text-gray-400'
+      className={`flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl transition duration-200 active:scale-95 ${
+        active
+          ? 'bg-red-600/15 text-red-500 font-black scale-105 border border-red-600/30'
+          : 'text-gray-400 hover:text-white font-medium'
       }`}
     >
-      <span className="text-base">{icon}</span>
-      <span className="text-[10px]">{label}</span>
+      <span className="text-lg leading-none">{icon}</span>
+      <span className="text-[11px] tracking-wide">{label}</span>
     </button>
   );
 }
