@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { fetchTrending, searchMedia, fetchDetails, IMAGE_BASE_URL } from './services/tmdb';
+import {
+  fetchTrending,
+  searchMedia,
+  fetchDetails,
+  fetchGenres,
+  fetchByGenre,
+  IMAGE_BASE_URL,
+  BACKDROP_BASE_URL
+} from './services/tmdb';
 import MovieCard from './components/MovieCard';
 
 export default function App() {
@@ -10,30 +18,47 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [lang, setLang] = useState('ar-SA');
-  
-  // حالة التفاصيل
+
+  // حالات التصنيفات
+  const [genres, setGenres] = useState([]);
+  const [selectedGenre, setSelectedGenre] = useState('');
+
+  // حالات التفاصيل
   const [selectedItem, setSelectedItem] = useState(null);
   const [details, setDetails] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
 
-  // جلب قائمة الأفلام/المسلسلات
+  // جلب قائمة التصنيفات عند تغيير النوع أو اللغة
+  useEffect(() => {
+    const getGenresList = async () => {
+      const list = await fetchGenres(contentType, lang);
+      setGenres(list);
+    };
+    getGenresList();
+  }, [contentType, lang]);
+
+  // جلب البيانات (أبحاث / تصنيف / الأكثر تداولاً)
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       let data;
+
       if (searchQuery.trim()) {
         data = await searchMedia(searchQuery, contentType, page, lang);
+      } else if (selectedGenre) {
+        data = await fetchByGenre(contentType, selectedGenre, page, lang);
       } else {
         data = await fetchTrending(contentType, page, lang);
       }
+
       setItems(data.results || []);
       setTotalPages(data.total_pages || 1);
       setLoading(false);
     };
     loadData();
-  }, [contentType, page, searchQuery, lang]);
+  }, [contentType, page, searchQuery, selectedGenre, lang]);
 
-  // جلب تفاصيل العنصر عند الضغط عليه
+  // جلب تفاصيل العنصر المحدد
   useEffect(() => {
     if (!selectedItem) {
       setDetails(null);
@@ -50,6 +75,13 @@ export default function App() {
 
   const handleTypeChange = (type) => {
     setContentType(type);
+    setSelectedGenre('');
+    setPage(1);
+  };
+
+  const handleGenreChange = (genreId) => {
+    setSelectedGenre(genreId);
+    setSearchQuery('');
     setPage(1);
   };
 
@@ -57,7 +89,6 @@ export default function App() {
     setLang((prev) => (prev === 'ar-SA' ? 'en-US' : 'ar-SA'));
   };
 
-  // البحث عن التريلر
   const trailer = details?.videos?.results?.find(
     (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
   );
@@ -78,14 +109,15 @@ export default function App() {
         </button>
       </header>
 
-      {/* البحث والتصنيف */}
-      <div className="flex flex-col md:flex-row gap-4 mb-8">
+      {/* البحث وتحديد النوع (أفلام/مسلسلات) */}
+      <div className="flex flex-col md:flex-row gap-4 mb-4">
         <input
           type="text"
           placeholder={lang === 'ar-SA' ? 'ابحث عن فيلم أو مسلسل...' : 'Search movies or TV show...'}
           value={searchQuery}
           onChange={(e) => {
             setSearchQuery(e.target.value);
+            setSelectedGenre('');
             setPage(1);
           }}
           className="flex-1 bg-gray-900 border border-gray-800 px-4 py-3 rounded-xl focus:outline-none focus:border-red-600 text-sm"
@@ -111,7 +143,34 @@ export default function App() {
         </div>
       </div>
 
-      {/* شبكة الأفلام */}
+      {/* شريط الأقسام والتصنيفات (Genres Slider) */}
+      <div className="flex gap-2 overflow-x-auto pb-4 mb-6 scrollbar-none">
+        <button
+          onClick={() => handleGenreChange('')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition border ${
+            selectedGenre === ''
+              ? 'bg-white text-black border-white'
+              : 'bg-gray-900 text-gray-400 border-gray-800 hover:bg-gray-800'
+          }`}
+        >
+          {lang === 'ar-SA' ? 'الكل 🌟' : 'All 🌟'}
+        </button>
+        {genres.map((g) => (
+          <button
+            key={g.id}
+            onClick={() => handleGenreChange(g.id)}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition border ${
+              selectedGenre === g.id
+                ? 'bg-white text-black border-white'
+                : 'bg-gray-900 text-gray-400 border-gray-800 hover:bg-gray-800'
+            }`}
+          >
+            {g.name}
+          </button>
+        ))}
+      </div>
+
+      {/* عرض المحتوى */}
       {loading ? (
         <div className="text-center py-20 text-gray-500">
           {lang === 'ar-SA' ? 'جاري التحميل...' : 'Loading...'}
@@ -147,7 +206,7 @@ export default function App() {
         </button>
       </div>
 
-      {/* صفحة التفاصيل الكاملة Full Page */}
+      {/* صفحة التفاصيل */}
       {selectedItem && (
         <div className="fixed inset-0 z-50 bg-black overflow-y-auto min-h-screen text-white">
           <button
@@ -163,11 +222,10 @@ export default function App() {
             </div>
           ) : (
             <div className="pb-16">
-              {/* غلاف الصورة Hero */}
               <div className="relative w-full h-[50vh] md:h-[65vh] bg-gray-900">
                 {details?.backdrop_path ? (
                   <img
-                    src={`${IMAGE_BASE_URL}${details.backdrop_path}`}
+                    src={`${BACKDROP_BASE_URL}${details.backdrop_path}`}
                     alt={details?.title || details?.name}
                     className="w-full h-full object-cover"
                   />
@@ -177,7 +235,7 @@ export default function App() {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-                
+
                 <div className="absolute bottom-6 px-6 md:px-12 w-full flex items-end gap-6">
                   {details?.poster_path && (
                     <img
@@ -202,7 +260,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* التفاصيل والقصة والممثلين والتريلر */}
               <div className="max-w-5xl mx-auto px-6 mt-8 space-y-10">
                 <div className="flex flex-wrap gap-2">
                   {details?.genres?.map((g) => (
