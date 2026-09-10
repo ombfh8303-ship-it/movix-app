@@ -38,6 +38,22 @@ export const fetchByGenre = async (type = 'movie', genreId, page = 1, lang = 'ar
 };
 
 /**
+ * جلب أفلام وأعمال شركة إنتاج معينة (Company ID)
+ */
+export const fetchByCompany = async (companyId, page = 1, lang = 'ar-SA') => {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/discover/movie?api_key=${API_KEY}&with_companies=${companyId}&language=${lang}&page=${page}&sort_by=popularity.desc`
+    );
+    if (!response.ok) throw new Error('Failed to fetch by company');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching company movies:', error);
+    return { results: [], page: 1, total_pages: 1 };
+  }
+};
+
+/**
  * جلب المحتوى الشائع (الأكثر تداولاً)
  */
 export const fetchTrending = async (type = 'movie', page = 1, lang = 'ar-SA') => {
@@ -104,7 +120,7 @@ export const searchMedia = async (query, type = 'movie', page = 1, lang = 'ar-SA
 };
 
 /**
- * جلب تفاصيل الفيلم أو المسلسل
+ * جلب تفاصيل الفيلم أو المسلسل شاملة الفيديوهات والتريلر وطاقم التمثيل
  */
 export const fetchDetails = async (type, id, lang = 'ar-SA') => {
   try {
