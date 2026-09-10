@@ -7,18 +7,19 @@ import {
   fetchDetails,
   fetchGenres,
   fetchByGenre,
+  fetchByCompany,
   IMAGE_BASE_URL,
   BACKDROP_BASE_URL
 } from './services/tmdb';
 
-// شركات الإنتاج الشهيرة
+// قائمة شركات الإنتاج الشهيرة
 const COMPANIES = [
-  { id: 420, name: 'Marvel', logo: '⚡' },
-  { id: 2, name: 'Walt Disney', logo: '🏰' },
-  { id: 33, name: 'Universal', logo: '🌐' },
-  { id: 174, name: 'Warner Bros.', logo: '🛡️' },
-  { id: 213, name: 'Netflix', logo: '🎬' },
-  { id: 3186, name: 'HBO', logo: '👑' },
+  { id: 420, name: 'مارفل سينماتيك - Marvel', logo: '⚡' },
+  { id: 2, name: 'والت ديزني - Walt Disney', logo: '🏰' },
+  { id: 33, name: 'يونيفيرسال - Universal', logo: '🌐' },
+  { id: 174, name: 'وارنر برذرز - Warner Bros', logo: '🛡️' },
+  { id: 213, name: 'نتفليكس - Netflix', logo: '🎬' },
+  { id: 3186, name: 'إتش بي أوه - HBO', logo: '👑' },
 ];
 
 export default function App() {
@@ -28,7 +29,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
-  // قائمة "قائمتي" من LocalStorage
+  // قائمة "قائمتي"
   const [myList, setMyList] = useState(() => {
     try {
       const saved = localStorage.getItem('movix_my_list');
@@ -43,30 +44,32 @@ export default function App() {
   const [latestMoviesList, setLatestMoviesList] = useState([]);
   const [topRatedList, setTopRatedList] = useState([]);
   const [trendingTvList, setTrendingTvList] = useState([]);
+  const [companyMovies, setCompanyMovies] = useState({});
 
-  // بيانات الشبكة العامة (لصفحات الأفلام / المسلسلات / الفلترة / البحث)
+  // بيانات الشبكة العامة
   const [gridItems, setGridItems] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // التصنيفات ونافذة الفلترة
+  // التصنيفات والفلترة
   const [genres, setGenres] = useState([]);
   const [selectedGenre, setSelectedGenre] = useState('');
   const [tempGenre, setTempGenre] = useState('');
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // التفاصيل
+  // التفاصيل والإعلان (Trailer)
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedItemType, setSelectedItemType] = useState('movie');
   const [details, setDetails] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [trailerKey, setTrailerKey] = useState(null);
 
   // مراقبة التمرير للـ Header
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 40);
+      setScrolled(window.scrollY > 30);
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -85,7 +88,7 @@ export default function App() {
     getGenresList();
   }, [activeTab, lang]);
 
-  // جلب محتوى الصفحة الرئيسية (أقسام أفقية متتالية)
+  // جلب محتوى الصفحة الرئيسية بما فيها شركات الإنتاج
   useEffect(() => {
     if (activeTab === 'home' && !searchQuery && !selectedGenre) {
       const loadHomeContent = async () => {
@@ -96,10 +99,22 @@ export default function App() {
           fetchTopRated('movie', 1, lang),
           fetchTrending('tv', 1, lang)
         ]);
+
         setTrendingList(trending.results || []);
         setLatestMoviesList(upcoming.results || []);
         setTopRatedList(topRated.results || []);
         setTrendingTvList(tvTrending.results || []);
+
+        // جلب أفلام شركات الإنتاج بالتوازي
+        const companyResults = {};
+        await Promise.all(
+          COMPANIES.map(async (comp) => {
+            const res = await fetchByCompany(comp.id, 1, lang);
+            companyResults[comp.id] = res.results || [];
+          })
+        );
+        setCompanyMovies(companyResults);
+
         setLoading(false);
       };
       loadHomeContent();
@@ -130,7 +145,7 @@ export default function App() {
     }
   }, [activeTab, page, searchQuery, selectedGenre, lang]);
 
-  // جلب تفاصيل العمل السينمائي
+  // جلب التفاصيل
   useEffect(() => {
     if (!selectedItem) {
       setDetails(null);
@@ -140,10 +155,27 @@ export default function App() {
       setDetailsLoading(true);
       const data = await fetchDetails(selectedItemType, selectedItem.id, lang);
       setDetails(data);
+      const trailer = data?.videos?.results?.find(
+        (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
+      );
+      setTrailerKey(trailer ? trailer.key : null);
       setDetailsLoading(false);
     };
     getDetails();
   }, [selectedItem, selectedItemType, lang]);
+
+  // تشغيل الإعلان التشويقي مباشرة
+  const handlePlayTrailer = async (item, type = 'movie') => {
+    const data = await fetchDetails(type, item.id, lang);
+    const trailer = data?.videos?.results?.find(
+      (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
+    );
+    if (trailer) {
+      setTrailerKey(trailer.key);
+    } else {
+      alert(lang === 'ar-SA' ? 'عذراً، الإعلان التشويقي غير متوفر لطلبك حالياً' : 'Trailer not available');
+    }
+  };
 
   const toggleMyList = (item, type = 'movie') => {
     const exists = myList.some((i) => i.id === item.id);
@@ -162,13 +194,10 @@ export default function App() {
   };
 
   const featuredItem = trendingList.length > 0 ? trendingList[0] : null;
-  const trailer = details?.videos?.results?.find(
-    (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
-  );
 
   return (
     <div
-      className="min-h-screen bg-[#08080a] text-zinc-100 antialiased pb-24 selection:bg-amber-500 selection:text-black"
+      className="min-h-screen bg-[#08080a] text-zinc-100 antialiased pb-24 selection:bg-amber-500 selection:text-black font-sans"
       dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}
     >
       {/* 1. Header العصري المتكيف */}
@@ -181,7 +210,7 @@ export default function App() {
       >
         <div className="max-w-7xl mx-auto px-4 md:px-8 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-amber-200 p-[1px]">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-amber-200 p-[1px] shadow-lg shadow-amber-500/20">
               <div className="w-full h-full bg-black rounded-full flex items-center justify-center text-amber-300 font-bold text-sm">
                 👤
               </div>
@@ -193,7 +222,7 @@ export default function App() {
 
           <button
             onClick={() => setLang((prev) => (prev === 'ar-SA' ? 'en-US' : 'ar-SA'))}
-            className="text-amber-300 bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/50 px-3.5 py-1.5 rounded-full text-xs font-bold transition duration-300 backdrop-blur-md"
+            className="text-amber-300 bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/50 px-3.5 py-1.5 rounded-full text-xs font-bold transition duration-300 backdrop-blur-md active:scale-95"
           >
             {lang === 'ar-SA' ? 'English' : 'العربية'}
           </button>
@@ -202,7 +231,7 @@ export default function App() {
 
       <main className="pt-16 max-w-7xl mx-auto px-4 md:px-8 space-y-8">
         
-        {/* 2. شريط البحث والفلترة الأصلي - محتفظ بمساره بدون إنشاء شريط جديد */}
+        {/* 2. شريط البحث الأصلي المحتفظ بمكانه */}
         <div className="pt-2 space-y-3">
           <div className="relative max-w-2xl mx-auto">
             <input
@@ -240,7 +269,7 @@ export default function App() {
                   setTempGenre(selectedGenre);
                   setShowFilterModal(true);
                 }}
-                className="flex items-center gap-2 bg-zinc-900/80 text-amber-300 border border-amber-500/20 hover:border-amber-500/50 px-3.5 py-1.5 rounded-xl text-xs font-bold transition backdrop-blur-md"
+                className="flex items-center gap-2 bg-zinc-900/80 text-amber-300 border border-amber-500/20 hover:border-amber-500/50 px-3.5 py-1.5 rounded-xl text-xs font-bold transition backdrop-blur-md active:scale-95"
               >
                 <span>⚙️</span>
                 <span>{lang === 'ar-SA' ? 'التصنيف' : 'Genres'}</span>
@@ -249,13 +278,13 @@ export default function App() {
           </div>
         </div>
 
-        {/* 3. العرض الرئيسي: الصفحة الرئيسية الأفقية OR الشبكة */}
+        {/* 3. العرض الرئيسي */}
         {activeTab === 'home' && !searchQuery && !selectedGenre ? (
           
-          /* ==================== محتوى الصفحة الرئيسية (Streaming Hub) ==================== */
+          /* ==================== الرئيسية السلسة ==================== */
           <div className="space-y-10">
 
-            {/* 🔥 Hero Banner سينمائي بعرض شاشة ذكي */}
+            {/* 🔥 Hero Banner سينمائي متجاوب وسلس */}
             {loading ? (
               <HeroSkeleton />
             ) : (
@@ -267,11 +296,9 @@ export default function App() {
                       alt={featuredItem.title || featuredItem.name}
                       className="w-full h-full object-cover object-top transition duration-700 group-hover:scale-105"
                     />
-                    {/* تدرج التعتيم الداكن المزدوج */}
                     <div className="absolute inset-0 bg-gradient-to-t from-[#08080a] via-[#08080a]/50 to-transparent" />
                     <div className="absolute inset-0 bg-gradient-to-r from-[#08080a]/80 via-transparent to-transparent" />
 
-                    {/* تفاصيل الهيرو النصية */}
                     <div className="absolute bottom-6 inset-x-6 md:inset-x-10 space-y-3 max-w-2xl">
                       <div className="flex items-center gap-2">
                         <span className="bg-amber-400 text-black text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
@@ -290,25 +317,32 @@ export default function App() {
                       </h2>
 
                       <p className="text-xs sm:text-sm text-zinc-300 line-clamp-2 sm:line-clamp-3 leading-relaxed font-normal">
-                        {featuredItem.overview || (lang === 'ar-SA' ? 'فيلم سينمائي مشوق مميز للغاية متوفر للعرض الآن.' : 'Featured movie available now.')}
+                        {featuredItem.overview || (lang === 'ar-SA' ? 'فيلم سينمائي مميز متوفر للعرض الآن.' : 'Featured movie available now.')}
                       </p>
 
-                      {/* أزرار التشغيل والحفظ */}
+                      {/* أزرار التشغيل والتريلر */}
                       <div className="flex items-center gap-3 pt-2">
                         <button
-                          onClick={() => handleOpenDetails(featuredItem, 'movie')}
-                          className="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-extrabold px-6 py-3 rounded-xl shadow-lg shadow-amber-500/20 text-xs sm:text-sm transition duration-300 transform hover:scale-105"
+                          onClick={() => handlePlayTrailer(featuredItem, 'movie')}
+                          className="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-extrabold px-6 py-3 rounded-xl shadow-lg shadow-amber-500/20 text-xs sm:text-sm transition duration-300 active:scale-95"
                         >
                           <span>▶</span>
-                          <span>{lang === 'ar-SA' ? 'شاهد الآن' : 'Watch Now'}</span>
+                          <span>{lang === 'ar-SA' ? 'شاهد التريلر' : 'Watch Trailer'}</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenDetails(featuredItem, 'movie')}
+                          className="flex items-center gap-2 bg-zinc-900/80 hover:bg-zinc-800 text-white font-bold px-5 py-3 rounded-xl border border-white/10 text-xs sm:text-sm transition backdrop-blur-md active:scale-95"
+                        >
+                          <span>ℹ️</span>
+                          <span>{lang === 'ar-SA' ? 'التفاصيل' : 'Details'}</span>
                         </button>
 
                         <button
                           onClick={() => toggleMyList(featuredItem, 'movie')}
-                          className="flex items-center gap-2 bg-zinc-900/80 hover:bg-zinc-800 text-white font-bold px-5 py-3 rounded-xl border border-white/10 text-xs sm:text-sm transition backdrop-blur-md"
+                          className="w-11 h-11 bg-zinc-900/80 hover:bg-zinc-800 text-white font-bold rounded-xl border border-white/10 flex items-center justify-center transition backdrop-blur-md active:scale-95"
                         >
-                          <span>{isInMyList(featuredItem.id) ? '✓' : '＋'}</span>
-                          <span>{isInMyList(featuredItem.id) ? (lang === 'ar-SA' ? 'في قائمتي' : 'In My List') : (lang === 'ar-SA' ? 'أضف إلى قائمتي' : 'My List')}</span>
+                          {isInMyList(featuredItem.id) ? '✓' : '＋'}
                         </button>
                       </div>
                     </div>
@@ -317,7 +351,7 @@ export default function App() {
               )
             )}
 
-            {/* الأقسام بالترتيب المحدد بالضبط */}
+            {/* الأقسام بالترتيب */}
 
             {/* 1. 🔥 الأكثر تداولاً */}
             <SectionRow
@@ -325,18 +359,20 @@ export default function App() {
               items={trendingList}
               loading={loading}
               onItemClick={(item) => handleOpenDetails(item, 'movie')}
+              onPlayTrailer={(item) => handlePlayTrailer(item, 'movie')}
               isInMyList={isInMyList}
               toggleMyList={toggleMyList}
               onViewAll={() => setActiveTab('movies')}
               lang={lang}
             />
 
-            {/* 2. 🎬 أحدث الأفلام والقادمة قريباً */}
+            {/* 2. 🎬 أحدث الأفلام */}
             <SectionRow
-              title={lang === 'ar-SA' ? '🎬 أحدث الأفلام' : '🎬 Latest Movies'}
+              title={lang === 'ar-SA' ? '🎬 أحدث الأفلام والقادمة قريباً' : '🎬 Latest Movies'}
               items={latestMoviesList}
               loading={loading}
               onItemClick={(item) => handleOpenDetails(item, 'movie')}
+              onPlayTrailer={(item) => handlePlayTrailer(item, 'movie')}
               isInMyList={isInMyList}
               toggleMyList={toggleMyList}
               onViewAll={() => setActiveTab('movies')}
@@ -349,6 +385,7 @@ export default function App() {
               items={topRatedList}
               loading={loading}
               onItemClick={(item) => handleOpenDetails(item, 'movie')}
+              onPlayTrailer={(item) => handlePlayTrailer(item, 'movie')}
               isInMyList={isInMyList}
               toggleMyList={toggleMyList}
               onViewAll={() => setActiveTab('movies')}
@@ -361,40 +398,46 @@ export default function App() {
               items={trendingTvList}
               loading={loading}
               onItemClick={(item) => handleOpenDetails(item, 'tv')}
+              onPlayTrailer={(item) => handlePlayTrailer(item, 'tv')}
               isInMyList={isInMyList}
               toggleMyList={(item) => toggleMyList(item, 'tv')}
               onViewAll={() => setActiveTab('tv')}
               lang={lang}
             />
 
-            {/* 5. 🏢 شركات الإنتاج */}
-            <div className="space-y-4">
-              <h3 className="text-base font-bold text-amber-200 flex items-center gap-2">
-                <span>🏢</span>
-                <span>{lang === 'ar-SA' ? 'شركات الإنتاج الشهيرة' : 'Production Companies'}</span>
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                {COMPANIES.map((company) => (
-                  <div
-                    key={company.id}
-                    className="bg-zinc-900/60 border border-white/5 hover:border-amber-500/40 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition hover:bg-zinc-800/80 group shadow-md"
-                  >
-                    <span className="text-2xl group-hover:scale-110 transition">{company.logo}</span>
-                    <span className="text-xs font-bold text-zinc-300 group-hover:text-amber-300">{company.name}</span>
-                  </div>
-                ))}
+            {/* 5. 🏢 شركات الإنتاج مع عرض أفلامها بصفوف أفقية */}
+            <div className="space-y-8 pt-4 border-t border-white/5">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🏢</span>
+                <h3 className="text-lg font-black text-amber-200">
+                  {lang === 'ar-SA' ? 'أعمال شركات الإنتاج العالمية' : 'Production Companies Showcase'}
+                </h3>
               </div>
+
+              {COMPANIES.map((company) => (
+                <SectionRow
+                  key={company.id}
+                  title={`${company.logo} ${company.name}`}
+                  items={companyMovies[company.id] || []}
+                  loading={loading}
+                  onItemClick={(item) => handleOpenDetails(item, 'movie')}
+                  onPlayTrailer={(item) => handlePlayTrailer(item, 'movie')}
+                  isInMyList={isInMyList}
+                  toggleMyList={toggleMyList}
+                  lang={lang}
+                />
+              ))}
             </div>
 
           </div>
         ) : activeTab === 'mylist' ? (
           
-          /* ==================== عرض قائمتي المفضلّة ==================== */
+          /* ==================== قائمتي ==================== */
           <div className="space-y-6">
             {myList.length === 0 ? (
               <div className="text-center py-20 text-zinc-500 space-y-3">
                 <span className="text-4xl">📂</span>
-                <p className="text-sm">{lang === 'ar-SA' ? 'قائمتك فارغة حالياً. أضف بعض الأفلام أو المسلسلات!' : 'Your list is currently empty.'}</p>
+                <p className="text-sm">{lang === 'ar-SA' ? 'قائمتك فارغة حالياً.' : 'Your list is empty.'}</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -403,6 +446,7 @@ export default function App() {
                     key={item.id}
                     item={item}
                     onItemClick={() => handleOpenDetails(item, item.media_type || 'movie')}
+                    onPlayTrailer={() => handlePlayTrailer(item, item.media_type || 'movie')}
                     isInMyList={isInMyList(item.id)}
                     toggleMyList={() => toggleMyList(item, item.media_type || 'movie')}
                   />
@@ -412,7 +456,7 @@ export default function App() {
           </div>
         ) : (
 
-          /* ==================== العرض الشبكي (Grid View) للأفلام والمسلسلات ==================== */
+          /* ==================== العرض الشبكي ==================== */
           <div className="space-y-6">
             {loading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -428,18 +472,19 @@ export default function App() {
                       key={item.id}
                       item={item}
                       onItemClick={() => handleOpenDetails(item, activeTab === 'tv' ? 'tv' : 'movie')}
+                      onPlayTrailer={() => handlePlayTrailer(item, activeTab === 'tv' ? 'tv' : 'movie')}
                       isInMyList={isInMyList(item.id)}
                       toggleMyList={() => toggleMyList(item, activeTab === 'tv' ? 'tv' : 'movie')}
                     />
                   ))}
                 </div>
 
-                {/* الترقيم (Pagination) */}
+                {/* الترقيم */}
                 <div className="flex justify-center items-center gap-4 pt-6">
                   <button
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                    className="px-4 py-2 bg-zinc-900 border border-white/10 rounded-xl text-xs font-bold text-amber-200 disabled:opacity-30 hover:bg-zinc-800 transition"
+                    className="px-4 py-2 bg-zinc-900 border border-white/10 rounded-xl text-xs font-bold text-amber-200 disabled:opacity-30 hover:bg-zinc-800 transition active:scale-95"
                   >
                     {lang === 'ar-SA' ? 'السابق' : 'Prev'}
                   </button>
@@ -449,7 +494,7 @@ export default function App() {
                   <button
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => p + 1)}
-                    className="px-4 py-2 bg-zinc-900 border border-white/10 rounded-xl text-xs font-bold text-amber-200 disabled:opacity-30 hover:bg-zinc-800 transition"
+                    className="px-4 py-2 bg-zinc-900 border border-white/10 rounded-xl text-xs font-bold text-amber-200 disabled:opacity-30 hover:bg-zinc-800 transition active:scale-95"
                   >
                     {lang === 'ar-SA' ? 'التالي' : 'Next'}
                   </button>
@@ -461,7 +506,7 @@ export default function App() {
 
       </main>
 
-      {/* 4. Bottom Navigation Bar العصري والدقيق */}
+      {/* 4. Bottom Navigation Bar */}
       <nav className="fixed bottom-0 inset-x-0 z-40 bg-[#08080a]/95 backdrop-blur-2xl border-t border-white/5 py-2 px-6 max-w-md md:max-w-xl mx-auto rounded-t-3xl shadow-2xl flex items-center justify-around">
         <NavButton
           active={activeTab === 'home' && !searchQuery && !selectedGenre}
@@ -507,29 +552,43 @@ export default function App() {
         />
       </nav>
 
-      {/* 5. Filter Modal نافذة التصنيفات المودرن */}
+      {/* 5. نافذة مشغّل التريلر المباشرة السريعة (Trailer Modal) */}
+      {trailerKey && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="relative w-full max-w-4xl aspect-video rounded-3xl overflow-hidden bg-black border border-white/10 shadow-2xl">
+            <button
+              onClick={() => setTrailerKey(null)}
+              className="absolute top-4 right-4 z-50 bg-black/80 hover:bg-amber-400 hover:text-black text-white w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm transition"
+            >
+              ✕
+            </button>
+            <iframe
+              src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
+              title="Trailer"
+              className="w-full h-full border-0"
+              allow="autoplay; encrypted-media"
+              allowFullScreen
+            ></iframe>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Filter Modal */}
       {showFilterModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#121216] border border-white/10 rounded-3xl w-full max-w-sm p-6 space-y-5 shadow-2xl animate-scaleIn">
+          <div className="bg-[#121216] border border-white/10 rounded-3xl w-full max-w-sm p-6 space-y-5 shadow-2xl">
             <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <h3 className="text-sm font-bold text-amber-200">
-                {lang === 'ar-SA' ? 'اختر التصنيف السينمائي' : 'Select Genre'}
+                {lang === 'ar-SA' ? 'اختر التصنيف' : 'Select Genre'}
               </h3>
-              <button
-                onClick={() => setShowFilterModal(false)}
-                className="text-zinc-400 hover:text-white text-base"
-              >
-                ✕
-              </button>
+              <button onClick={() => setShowFilterModal(false)} className="text-zinc-400 hover:text-white">✕</button>
             </div>
 
             <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
               <button
                 onClick={() => setTempGenre('')}
-                className={`py-2 rounded-xl text-xs font-bold transition border ${
-                  tempGenre === ''
-                    ? 'bg-amber-400 text-black border-amber-300'
-                    : 'bg-zinc-900 text-zinc-300 border-white/5 hover:bg-zinc-800'
+                className={`py-2 rounded-xl text-xs font-bold border ${
+                  tempGenre === '' ? 'bg-amber-400 text-black border-amber-300' : 'bg-zinc-900 text-zinc-300 border-white/5'
                 }`}
               >
                 {lang === 'ar-SA' ? 'الكل' : 'All'}
@@ -538,10 +597,10 @@ export default function App() {
                 <button
                   key={g.id}
                   onClick={() => setTempGenre(g.id)}
-                  className={`py-2 rounded-xl text-xs font-bold truncate transition border px-1 ${
+                  className={`py-2 rounded-xl text-xs font-bold truncate border px-1 ${
                     String(tempGenre) === String(g.id)
                       ? 'bg-amber-400 text-black border-amber-300'
-                      : 'bg-zinc-900 text-zinc-300 border-white/5 hover:bg-zinc-800'
+                      : 'bg-zinc-900 text-zinc-300 border-white/5'
                   }`}
                 >
                   {g.name}
@@ -556,20 +615,20 @@ export default function App() {
                 setPage(1);
                 setShowFilterModal(false);
               }}
-              className="w-full bg-gradient-to-r from-amber-400 to-amber-500 text-black font-extrabold py-3 rounded-2xl shadow-lg transition text-xs"
+              className="w-full bg-gradient-to-r from-amber-400 to-amber-500 text-black font-extrabold py-3 rounded-2xl shadow-lg text-xs active:scale-95 transition"
             >
-              {lang === 'ar-SA' ? 'تطبيق الفلتر' : 'Apply Filter'}
+              {lang === 'ar-SA' ? 'تطبيق' : 'Apply'}
             </button>
           </div>
         </div>
       )}
 
-      {/* 6. Modal تفاصيل الفيلم/المسلسل السينمائي المحدث بالكامل */}
+      {/* 7. Modal التفاصيل */}
       {selectedItem && (
         <div className="fixed inset-0 z-50 bg-[#08080a] overflow-y-auto min-h-screen text-zinc-100">
           <button
             onClick={() => setSelectedItem(null)}
-            className="fixed top-5 right-5 z-50 bg-black/70 hover:bg-amber-500 hover:text-black text-amber-200 px-4 py-2 rounded-full backdrop-blur-md transition border border-white/10 text-xs font-bold shadow-2xl flex items-center gap-1.5"
+            className="fixed top-5 right-5 z-50 bg-black/70 hover:bg-amber-500 hover:text-black text-amber-200 px-4 py-2 rounded-full backdrop-blur-md transition border border-white/10 text-xs font-bold shadow-2xl flex items-center gap-1.5 active:scale-95"
           >
             ✕ {lang === 'ar-SA' ? 'إغلاق' : 'Close'}
           </button>
@@ -580,7 +639,6 @@ export default function App() {
             </div>
           ) : (
             <div className="pb-24">
-              {/* الغلاف العلوي الهيرو للتفاصيل */}
               <div className="relative w-full h-[55vh] md:h-[65vh] bg-zinc-950">
                 {details?.backdrop_path ? (
                   <img
@@ -622,10 +680,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* محتوى قصة الفيلم والممثلين والعرض */}
               <div className="max-w-4xl mx-auto px-6 mt-6 space-y-8">
-                
-                {/* الأزرار والتصنيف */}
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex flex-wrap gap-2">
                     {details?.genres?.map((g) => (
@@ -640,14 +695,13 @@ export default function App() {
 
                   <button
                     onClick={() => toggleMyList(details, selectedItemType)}
-                    className="flex items-center gap-2 bg-zinc-900 border border-white/10 text-white font-bold px-4 py-2 rounded-xl text-xs hover:border-amber-400 transition"
+                    className="flex items-center gap-2 bg-zinc-900 border border-white/10 text-white font-bold px-4 py-2 rounded-xl text-xs hover:border-amber-400 transition active:scale-95"
                   >
                     <span>{isInMyList(details?.id) ? '✓' : '＋'}</span>
                     <span>{isInMyList(details?.id) ? (lang === 'ar-SA' ? 'في قائمتي' : 'In List') : (lang === 'ar-SA' ? 'أضف لقائمتي' : 'Add to List')}</span>
                   </button>
                 </div>
 
-                {/* القصة */}
                 <div className="space-y-2">
                   <h3 className="text-sm font-bold text-amber-200 border-r-4 border-amber-400 pr-3">
                     {lang === 'ar-SA' ? 'قصة العمل' : 'Overview'}
@@ -678,23 +732,6 @@ export default function App() {
                     </div>
                   </div>
                 )}
-
-                {/* الإعلان التشويقي Trailer */}
-                {trailer && (
-                  <div className="space-y-3 pt-2">
-                    <h3 className="text-sm font-bold text-amber-200 border-r-4 border-amber-400 pr-3">
-                      {lang === 'ar-SA' ? 'الإعلان الرسمي (Trailer)' : 'Official Trailer'}
-                    </h3>
-                    <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-white/10 bg-black shadow-2xl">
-                      <iframe
-                        src={`https://www.youtube.com/embed/${trailer.key}`}
-                        title="Official Trailer"
-                        className="w-full h-full border-0"
-                        allowFullScreen
-                      ></iframe>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -704,19 +741,15 @@ export default function App() {
   );
 }
 
-// ---------------- مكونات فرعية ومساعدة لمزيد من التنظيم والأداء ----------------
+// ---------------- مكونات فرعية أفقية ----------------
 
-// 1. صف أفقي احترافي متجاوب (Horizontal Row)
-function SectionRow({ title, items, loading, onItemClick, isInMyList, toggleMyList, onViewAll, lang }) {
+function SectionRow({ title, items, loading, onItemClick, onPlayTrailer, isInMyList, toggleMyList, onViewAll, lang }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-bold text-amber-100">{title}</h3>
         {onViewAll && (
-          <button
-            onClick={onViewAll}
-            className="text-xs font-semibold text-amber-400 hover:underline"
-          >
+          <button onClick={onViewAll} className="text-xs font-semibold text-amber-400 hover:underline">
             {lang === 'ar-SA' ? 'عرض الكل ←' : 'See All →'}
           </button>
         )}
@@ -737,6 +770,7 @@ function SectionRow({ title, items, loading, onItemClick, isInMyList, toggleMyLi
               <PosterCard
                 item={item}
                 onItemClick={() => onItemClick(item)}
+                onPlayTrailer={() => onPlayTrailer(item)}
                 isInMyList={isInMyList(item.id)}
                 toggleMyList={() => toggleMyList(item)}
               />
@@ -748,41 +782,50 @@ function SectionRow({ title, items, loading, onItemClick, isInMyList, toggleMyLi
   );
 }
 
-// 2. بطاقة البوستر السينمائية المحسّنة (Poster Card 2:3)
-function PosterCard({ item, onItemClick, isInMyList, toggleMyList }) {
+function PosterCard({ item, onItemClick, onPlayTrailer, isInMyList, toggleMyList }) {
   return (
     <div className="group relative cursor-pointer rounded-2xl overflow-hidden bg-zinc-900/80 border border-white/5 hover:border-amber-500/50 transition duration-300 shadow-md">
-      <div onClick={onItemClick} className="aspect-[2/3] w-full overflow-hidden relative">
+      <div className="aspect-[2/3] w-full overflow-hidden relative">
         {item.poster_path ? (
           <img
             src={`${IMAGE_BASE_URL}${item.poster_path}`}
             alt={item.title || item.name}
             className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
             loading="lazy"
+            onClick={onItemClick}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">
+          <div onClick={onItemClick} className="w-full h-full flex items-center justify-center text-zinc-600 text-xs">
             No Poster
           </div>
         )}
 
-        {/* Badge التقييم */}
         <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md text-amber-300 border border-amber-500/20 px-1.5 py-0.5 rounded-md text-[10px] font-bold">
           ★ {item.vote_average ? item.vote_average.toFixed(1) : 'N/A'}
         </div>
 
-        {/* زر الإضافة السريعة لقائمتي */}
+        {/* زر تشغيل التريلر السريع من البطاقة */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPlayTrailer();
+          }}
+          className="absolute inset-0 m-auto w-10 h-10 bg-amber-400/90 text-black rounded-full flex items-center justify-center text-sm font-black shadow-xl opacity-0 group-hover:opacity-100 transition duration-300 transform scale-90 group-hover:scale-100"
+        >
+          ▶
+        </button>
+
         <button
           onClick={(e) => {
             e.stopPropagation();
             toggleMyList();
           }}
-          className="absolute top-2 left-2 w-7 h-7 bg-black/70 backdrop-blur-md rounded-full border border-white/10 flex items-center justify-center text-xs text-white hover:bg-amber-400 hover:text-black transition"
+          className="absolute top-2 left-2 w-7 h-7 bg-black/70 backdrop-blur-md rounded-full border border-white/10 flex items-center justify-center text-xs text-white hover:bg-amber-400 hover:text-black transition active:scale-90"
         >
           {isInMyList ? '✓' : '＋'}
         </button>
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 pointer-events-none" />
       </div>
 
       <div onClick={onItemClick} className="p-2 space-y-0.5">
@@ -797,12 +840,11 @@ function PosterCard({ item, onItemClick, isInMyList, toggleMyList }) {
   );
 }
 
-// 3. أزرار شريط التنقل السفلي المودرن
 function NavButton({ active, onClick, icon, label }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 px-3 py-1 rounded-2xl transition duration-300 ${
+      className={`flex flex-col items-center gap-1 px-3 py-1 rounded-2xl transition duration-200 active:scale-90 ${
         active
           ? 'text-amber-400 font-bold scale-105'
           : 'text-zinc-400 hover:text-zinc-200'
@@ -815,7 +857,6 @@ function NavButton({ active, onClick, icon, label }) {
   );
 }
 
-// 4. هياكل عظمية للتحميل (Skeletons)
 function CardSkeleton() {
   return (
     <div className="rounded-2xl bg-zinc-900 border border-white/5 overflow-hidden animate-skeleton">
