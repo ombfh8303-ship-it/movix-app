@@ -38,7 +38,7 @@ export const fetchByGenre = async (type = 'movie', genreId, page = 1, lang = 'ar
 };
 
 /**
- * جلب المحتوى الشائع
+ * جلب المحتوى الشائع (الأكثر تداولاً)
  */
 export const fetchTrending = async (type = 'movie', page = 1, lang = 'ar-SA') => {
   try {
@@ -49,6 +49,39 @@ export const fetchTrending = async (type = 'movie', page = 1, lang = 'ar-SA') =>
     return await response.json();
   } catch (error) {
     console.error('Error fetching trending data:', error);
+    return { results: [], page: 1, total_pages: 1 };
+  }
+};
+
+/**
+ * جلب الأعلى تقييماً (Top Rated)
+ */
+export const fetchTopRated = async (type = 'movie', page = 1, lang = 'ar-SA') => {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/${type}/top_rated?api_key=${API_KEY}&language=${lang}&page=${page}`
+    );
+    if (!response.ok) throw new Error('Failed to fetch top rated data');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching top rated data:', error);
+    return { results: [], page: 1, total_pages: 1 };
+  }
+};
+
+/**
+ * جلب الأحدث / القادمة قريباً (Upcoming for movies / On The Air for TV)
+ */
+export const fetchUpcomingOrPopular = async (type = 'movie', page = 1, lang = 'ar-SA') => {
+  const endpoint = type === 'movie' ? 'upcoming' : 'on_the_air';
+  try {
+    const response = await fetch(
+      `${BASE_URL}/${type}/${endpoint}?api_key=${API_KEY}&language=${lang}&page=${page}`
+    );
+    if (!response.ok) throw new Error('Failed to fetch upcoming/latest data');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching upcoming/latest data:', error);
     return { results: [], page: 1, total_pages: 1 };
   }
 };
