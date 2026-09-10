@@ -53,19 +53,35 @@ export default function App() {
   const [genres, setGenres] = useState([]);
   const [selectedGenre, setSelectedGenre] = useState('');
   const [selectedStudio, setSelectedStudio] = useState(null);
+  
+  // شروط الفلترة المتقدمة
+  const [minRating, setMinRating] = useState(0);
+  const [selectedYear, setSelectedYear] = useState('');
+  
+  // المؤقتات للفلترة
   const [tempGenre, setTempGenre] = useState('');
+  const [tempMinRating, setTempMinRating] = useState(0);
+  const [tempSelectedYear, setTempSelectedYear] = useState('');
   const [showFilterModal, setShowFilterModal] = useState(false);
 
+  // تفاصيل العناصر والمواسم والترشيحات
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedItemType, setSelectedItemType] = useState('movie');
   const [details, setDetails] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [trailerKey, setTrailerKey] = useState(null);
 
+  // حالة المواسم المحددة للمسلسلات
+  const [selectedSeasonNumber, setSelectedSeasonNumber] = useState(1);
+  const [seasonDetails, setSeasonDetails] = useState(null);
+  const [seasonLoading, setSeasonLoading] = useState(false);
+
   const resetFilters = useCallback(() => {
     setSelectedGenre('');
     setSelectedStudio(null);
     setSearchQuery('');
+    setMinRating(0);
+    setSelectedYear('');
     setPage(1);
   }, []);
 
@@ -92,8 +108,9 @@ export default function App() {
     return () => { isMounted = false; };
   }, [activeTab, lang]);
 
+  // جلب المحتوى الرئيسي
   useEffect(() => {
-    if (activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio) {
+    if (activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear) {
       let isMounted = true;
       const loadHomeContent = async () => {
         setLoading(true);
@@ -140,8 +157,9 @@ export default function App() {
       loadHomeContent();
       return () => { isMounted = false; };
     }
-  }, [activeTab, searchQuery, selectedGenre, selectedStudio, lang]);
+  }, [activeTab, searchQuery, selectedGenre, selectedStudio, minRating, selectedYear, lang]);
 
+  // التبديل التلقائي للبانر العلوي
   useEffect(() => {
     if (trendingList.length === 0) return;
     const interval = setInterval(() => {
@@ -150,8 +168,9 @@ export default function App() {
     return () => clearInterval(interval);
   }, [trendingList]);
 
+  // جلب شبكة الأفلام / المسلسلات مع تطبيق الفلترة
   useEffect(() => {
-    if (activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio) {
+    if (activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio || minRating || selectedYear) {
       let isMounted = true;
       const loadGridContent = async () => {
         setLoading(true);
@@ -171,7 +190,20 @@ export default function App() {
           }
 
           if (isMounted) {
-            setGridItems(data?.results || []);
+            let results = data?.results || [];
+
+            // تطبيق الفلترة المحلية للتقييم والسنة
+            if (minRating > 0) {
+              results = results.filter((item) => (item.vote_average || 0) >= minRating);
+            }
+            if (selectedYear) {
+              results = results.filter((item) => {
+                const date = item.release_date || item.first_air_date || '';
+                return date.startsWith(selectedYear);
+              });
+            }
+
+            setGridItems(results);
             setTotalPages(data?.total_pages || 1);
           }
         } catch (err) {
@@ -183,8 +215,9 @@ export default function App() {
       loadGridContent();
       return () => { isMounted = false; };
     }
-  }, [activeTab, page, searchQuery, selectedGenre, selectedStudio, lang]);
+  }, [activeTab, page, searchQuery, selectedGenre, selectedStudio, minRating, selectedYear, lang]);
 
+  // جلب تفاصيل العمل المكتملة
   useEffect(() => {
     if (!selectedItem) {
       setDetails(null);
@@ -197,10 +230,17 @@ export default function App() {
         const data = await fetchDetails(selectedItemType, selectedItem.id, lang);
         if (!isMounted) return;
         setDetails(data);
+        
         const trailer = data?.videos?.results?.find(
           (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
         );
         setTrailerKey(trailer ? trailer.key : null);
+
+        // إذا كان مسلسلاً، حدد الموسم الأول تلقائياً
+        if (selectedItemType === 'tv' && data?.seasons?.length > 0) {
+          const firstSeason = data.seasons.find(s => s.season_number > 0) || data.seasons[0];
+          setSelectedSeasonNumber(firstSeason.season_number);
+        }
       } catch (err) {
         console.error('Error fetching details:', err);
       } finally {
@@ -210,6 +250,35 @@ export default function App() {
     getDetails();
     return () => { isMounted = false; };
   }, [selectedItem, selectedItemType, lang]);
+
+  // جلب تفاصيل الموسم عند اختيار موسم معين للمسلسل
+  useEffect(() => {
+    if (selectedItemType !== 'tv' || !selectedItem?.id || selectedSeasonNumber === null) {
+      setSeasonDetails(null);
+      return;
+    }
+
+    let isMounted = true;
+    const getSeasonDetails = async () => {
+      setSeasonLoading(true);
+      try {
+        const res = await fetch(
+          `https://api.themoviedb.org/3/tv/${selectedItem.id}/season/${selectedSeasonNumber}?api_key=4289874cb3f960f477028fae98f0efd0&language=${lang}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) setSeasonDetails(data);
+        }
+      } catch (err) {
+        console.error('Error fetching season details:', err);
+      } finally {
+        if (isMounted) setSeasonLoading(false);
+      }
+    };
+
+    getSeasonDetails();
+    return () => { isMounted = false; };
+  }, [selectedItem, selectedItemType, selectedSeasonNumber, lang]);
 
   const handlePlayTrailer = useCallback(async (item, type = 'movie') => {
     if (!item) return;
@@ -290,12 +359,14 @@ export default function App() {
           <button
             onClick={() => {
               setTempGenre(selectedGenre);
+              setTempMinRating(minRating);
+              setTempSelectedYear(selectedYear);
               setShowFilterModal(true);
             }}
             className="text-white text-sm bg-[#111827] p-2 rounded-full border border-[#1E293B] active:scale-95 transition"
-            title={lang === 'ar-SA' ? 'التصنيفات' : 'Filter Genres'}
+            title={lang === 'ar-SA' ? 'الفلاتر والتصنيفات' : 'Filters'}
           >
-            🔍
+            ⚙️
           </button>
 
           <div className="w-8 h-8 rounded-full bg-[#111827] border border-[#1E293B] flex items-center justify-center text-xs text-[#94A3B8]">
@@ -325,8 +396,8 @@ export default function App() {
 
       <main className="px-4 pt-4 space-y-6">
 
-        {/* 3. البانر الرئيسي (Hero Section) المزود بالتبديل التلقائي */}
-        {activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && (
+        {/* 3. البانر الرئيسي (Hero Section) */}
+        {activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear && (
           loading ? (
             <div className="h-[340px] bg-[#111827] rounded-3xl animate-pulse" />
           ) : (
@@ -380,7 +451,6 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* مؤشر النقاط للتقليب التلقائي */}
                     <div className="flex justify-center items-center gap-1.5 pt-2">
                       {trendingList.slice(0, 5).map((_, idx) => (
                         <button
@@ -401,7 +471,7 @@ export default function App() {
         )}
 
         {/* 4. أقسام العرض الأفقي بالصفحة الرئيسية */}
-        {activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && (
+        {activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear && (
           <div className="space-y-6">
             <HorizontalSection
               title={lang === 'ar-SA' ? '🔥 الأكثر تداولاً' : '🔥 Trending'}
@@ -443,7 +513,7 @@ export default function App() {
               lang={lang}
             />
 
-            {/* صفوف أفلام شركات الإنتاج العالمية */}
+            {/* صفوف أفلام شركات الإنتاج */}
             <div className="pt-2 space-y-6 border-t border-[#1E293B]">
               <h2 className="text-base font-black text-white tracking-wide border-r-4 border-[#3B82F6] pr-2">
                 {lang === 'ar-SA' ? '🏢 أعمال شركات الإنتاج' : '🏢 Production Studios Content'}
@@ -502,8 +572,8 @@ export default function App() {
           </div>
         )}
 
-        {/* 6. العرض الشبكي (أفلام، مسلسلات، استوديو محدد، بحث، أو تصنيف) */}
-        {(activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio) && activeTab !== 'mylist' && (
+        {/* 6. العرض الشبكي (أفلام، مسلسلات، فلترة المتقدمة) */}
+        {(activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio || minRating > 0 || selectedYear) && activeTab !== 'mylist' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-black text-white border-r-4 border-[#3B82F6] pr-2">
@@ -518,12 +588,9 @@ export default function App() {
                   : (lang === 'ar-SA' ? 'المسلسلات' : 'TV Series')}
               </h3>
 
-              {(selectedGenre || selectedStudio) && (
+              {(selectedGenre || selectedStudio || minRating > 0 || selectedYear) && (
                 <button
-                  onClick={() => {
-                    setSelectedGenre('');
-                    setSelectedStudio(null);
-                  }}
+                  onClick={resetFilters}
                   className="text-[10px] text-[#60A5FA] bg-[#3B82F6]/10 px-2.5 py-1 rounded-full border border-[#3B82F6]/30"
                 >
                   {lang === 'ar-SA' ? 'إلغاء الفلتر ✕' : 'Clear Filter ✕'}
@@ -536,6 +603,10 @@ export default function App() {
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="bg-[#111827] rounded-2xl h-48 animate-pulse" />
                 ))}
+              </div>
+            ) : gridItems.length === 0 ? (
+              <div className="text-center py-16 text-[#94A3B8]">
+                <p className="text-xs">{lang === 'ar-SA' ? 'لم يتم العثور على نتائج تطابق معاييرك.' : 'No results found matching your criteria.'}</p>
               </div>
             ) : (
               <>
@@ -550,7 +621,6 @@ export default function App() {
                   ))}
                 </div>
 
-                {/* التنقل بين الصفحات */}
                 <div className="flex justify-center items-center gap-3 pt-4">
                   <button
                     disabled={page <= 1}
@@ -587,7 +657,7 @@ export default function App() {
               </svg>
             }
             label={lang === 'ar-SA' ? 'الرئيسية' : 'Home'}
-            active={activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio}
+            active={activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear}
             onClick={() => {
               setActiveTab('home');
               resetFilters();
@@ -600,7 +670,7 @@ export default function App() {
               </svg>
             }
             label={lang === 'ar-SA' ? 'الأفلام' : 'Movies'}
-            active={activeTab === 'movies' && !searchQuery && !selectedGenre && !selectedStudio}
+            active={activeTab === 'movies' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear}
             onClick={() => {
               setActiveTab('movies');
               resetFilters();
@@ -613,7 +683,7 @@ export default function App() {
               </svg>
             }
             label={lang === 'ar-SA' ? 'المسلسلات' : 'TV Series'}
-            active={activeTab === 'tv' && !searchQuery && !selectedGenre && !selectedStudio}
+            active={activeTab === 'tv' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear}
             onClick={() => {
               setActiveTab('tv');
               resetFilters();
@@ -635,44 +705,86 @@ export default function App() {
         </nav>
       </div>
 
-      {/* 8. نافذة اختيار التصنيفات (Filter Modal) */}
+      {/* 8. نافذة الفلاتر المتقدمة (Filter Modal) */}
       {showFilterModal && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-[#111827] border border-[#1E293B] rounded-3xl w-full max-w-xs p-5 space-y-4 shadow-2xl">
+          <div className="bg-[#111827] border border-[#1E293B] rounded-3xl w-full max-w-xs p-5 space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#1E293B] pb-2.5">
               <h3 className="text-xs font-bold text-white">
-                {lang === 'ar-SA' ? 'اختر التصنيف' : 'Select Genre'}
+                {lang === 'ar-SA' ? 'الفلترة المتقدمة' : 'Advanced Filters'}
               </h3>
               <button onClick={() => setShowFilterModal(false)} className="text-[#94A3B8] hover:text-white text-xs">✕</button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-              <button
-                onClick={() => setTempGenre('')}
-                className={`py-2 rounded-xl text-xs font-bold border transition ${
-                  tempGenre === '' ? 'bg-[#3B82F6] text-white border-[#3B82F6]' : 'bg-[#05070A] text-[#94A3B8] border-[#1E293B]'
-                }`}
-              >
-                {lang === 'ar-SA' ? 'الكل' : 'All'}
-              </button>
-              {genres.map((g) => (
+            {/* تصنيف Genre */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-[#94A3B8] block">
+                {lang === 'ar-SA' ? 'التصنيف' : 'Genre'}
+              </label>
+              <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1">
                 <button
-                  key={g.id}
-                  onClick={() => setTempGenre(g.id)}
-                  className={`py-2 rounded-xl text-xs font-bold truncate border px-1 transition ${
-                    String(tempGenre) === String(g.id)
-                      ? 'bg-[#3B82F6] text-white border-[#3B82F6]'
-                      : 'bg-[#05070A] text-[#94A3B8] border-[#1E293B]'
+                  onClick={() => setTempGenre('')}
+                  className={`py-1.5 rounded-xl text-xs font-bold border transition ${
+                    tempGenre === '' ? 'bg-[#3B82F6] text-white border-[#3B82F6]' : 'bg-[#05070A] text-[#94A3B8] border-[#1E293B]'
                   }`}
                 >
-                  {g.name}
+                  {lang === 'ar-SA' ? 'الكل' : 'All'}
                 </button>
-              ))}
+                {genres.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => setTempGenre(g.id)}
+                    className={`py-1.5 rounded-xl text-xs font-bold truncate border px-1 transition ${
+                      String(tempGenre) === String(g.id)
+                        ? 'bg-[#3B82F6] text-white border-[#3B82F6]'
+                        : 'bg-[#05070A] text-[#94A3B8] border-[#1E293B]'
+                    }`}
+                  >
+                    {g.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* أدنى تقييم Minimum Rating */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-[#94A3B8] flex justify-between">
+                <span>{lang === 'ar-SA' ? 'الحد الأدنى للتقييم' : 'Min Rating'}</span>
+                <span className="text-[#3B82F6]">★ {tempMinRating}+</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="9"
+                step="1"
+                value={tempMinRating}
+                onChange={(e) => setTempMinRating(Number(e.target.value))}
+                className="w-full accent-[#3B82F6]"
+              />
+            </div>
+
+            {/* سنة الإنتاج Year */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-[#94A3B8] block">
+                {lang === 'ar-SA' ? 'سنة الإنتاج' : 'Release Year'}
+              </label>
+              <select
+                value={tempSelectedYear}
+                onChange={(e) => setTempSelectedYear(e.target.value)}
+                className="w-full bg-[#05070A] border border-[#1E293B] text-white text-xs rounded-xl p-2 focus:outline-none"
+              >
+                <option value="">{lang === 'ar-SA' ? 'كل السنين' : 'All Years'}</option>
+                {Array.from({ length: 25 }, (_, i) => 2026 - i).map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
             </div>
 
             <button
               onClick={() => {
                 setSelectedGenre(tempGenre);
+                setMinRating(tempMinRating);
+                setSelectedYear(tempSelectedYear);
                 setSelectedStudio(null);
                 setSearchQuery('');
                 setPage(1);
@@ -680,13 +792,13 @@ export default function App() {
               }}
               className="w-full bg-[#3B82F6] hover:bg-blue-600 text-white font-extrabold py-2.5 rounded-2xl text-xs active:scale-95 transition"
             >
-              {lang === 'ar-SA' ? 'تطبيق' : 'Apply'}
+              {lang === 'ar-SA' ? 'تطبيق الفلتر' : 'Apply Filters'}
             </button>
           </div>
         </div>
       )}
 
-      {/* 9. نافذة التفاصيل الفردية (Details Modal) */}
+      {/* 9. نافذة التفاصيل والمواسم والتوصيات المكتملة (Details Modal) */}
       {selectedItem && (
         <div className="fixed inset-0 z-50 bg-[#05070A] overflow-y-auto min-h-screen text-[#F8FAFC]">
           <button
@@ -760,6 +872,7 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* القصة Overview */}
                 <div className="space-y-2 bg-[#111827]/60 p-4 rounded-2xl border border-[#1E293B]">
                   <h3 className={`text-sm font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
                     {lang === 'ar-SA' ? 'القصة' : 'Overview'}
@@ -769,7 +882,59 @@ export default function App() {
                   </p>
                 </div>
 
-                {/* طاقم التمثيل */}
+                {/* جدول المواسم والحلقات (للمسلسلات فقط) */}
+                {selectedItemType === 'tv' && details?.seasons?.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className={`text-sm font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
+                      {lang === 'ar-SA' ? 'المواسم والحلقات' : 'Seasons & Episodes'}
+                    </h3>
+
+                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                      {details.seasons
+                        .filter((s) => s.season_number > 0)
+                        .map((s) => (
+                          <button
+                            key={s.id}
+                            onClick={() => setSelectedSeasonNumber(s.season_number)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex-shrink-0 transition ${
+                              selectedSeasonNumber === s.season_number
+                                ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
+                                : 'bg-[#111827] border-[#1E293B] text-[#94A3B8]'
+                            }`}
+                          >
+                            {lang === 'ar-SA' ? `الموسم ${s.season_number}` : `Season ${s.season_number}`}
+                          </button>
+                        ))}
+                    </div>
+
+                    {/* قائمة حلقات الموسم المختار */}
+                    {seasonLoading ? (
+                      <div className="py-8 text-center text-xs text-[#94A3B8]">{lang === 'ar-SA' ? 'جاري تحميل الحلقات...' : 'Loading episodes...'}</div>
+                    ) : (
+                      seasonDetails?.episodes?.length > 0 && (
+                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                          {seasonDetails.episodes.map((ep) => (
+                            <div key={ep.id} className="flex gap-3 bg-[#111827] p-2 rounded-xl border border-[#1E293B] items-center">
+                              <img
+                                src={ep.still_path ? `${IMAGE_BASE_URL}${ep.still_path}` : 'https://via.placeholder.com/100x60?text=EP'}
+                                alt={ep.name}
+                                className="w-20 h-12 rounded-lg object-cover flex-shrink-0"
+                              />
+                              <div className="overflow-hidden space-y-0.5">
+                                <h4 className="text-xs font-bold text-white truncate">
+                                  {ep.episode_number}. {ep.name}
+                                </h4>
+                                <p className="text-[10px] text-[#94A3B8] line-clamp-1">{ep.overview || (lang === 'ar-SA' ? 'بدون ملخص' : 'No summary')}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+
+                {/* طاقم التمثيل Cast */}
                 {details?.credits?.cast?.length > 0 && (
                   <div className="space-y-3">
                     <h3 className={`text-sm font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
@@ -793,6 +958,28 @@ export default function App() {
                     </div>
                   </div>
                 )}
+
+                {/* الأعمال المشابهة والتوصيات Similar & Recommendations */}
+                {(details?.similar?.results?.length > 0 || details?.recommendations?.results?.length > 0) && (
+                  <div className="space-y-3 pt-2">
+                    <h3 className={`text-sm font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
+                      {lang === 'ar-SA' ? 'أعمال قد تعجبك (مشابهة)' : 'Similar Content'}
+                    </h3>
+
+                    <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none">
+                      {(details?.similar?.results || details?.recommendations?.results || []).slice(0, 10).map((simItem) => (
+                        <div key={simItem.id} className="w-28 flex-shrink-0">
+                          <MovieCard
+                            item={simItem}
+                            genresMap={genresMap}
+                            onClick={() => handleOpenDetails(simItem, selectedItemType)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               </div>
             </div>
           )}
