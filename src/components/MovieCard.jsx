@@ -6,7 +6,9 @@ export default function MovieCard({ item, type }) {
   const releaseDate = item.release_date || item.first_air_date || '';
   const year = releaseDate ? releaseDate.split('-')[0] : '';
   const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
-  const poster = item.poster_path ? `${IMAGE_BASE_URL}${item.poster_path}` : 'https://via.placeholder.com/500x750?text=No+Image';
+  const poster = item.poster_path
+    ? `${IMAGE_BASE_URL}${item.poster_path}`
+    : 'https://via.placeholder.com/500x750?text=No+Image';
 
   return (
     <div className="bg-gray-900 rounded-xl overflow-hidden shadow-lg hover:scale-105 transition-transform duration-300 flex flex-col cursor-pointer border border-gray-800">
