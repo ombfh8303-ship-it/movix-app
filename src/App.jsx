@@ -27,6 +27,7 @@ export default function App() {
   const [lang, setLang] = useState('ar-SA');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const [myList, setMyList] = useState(() => {
     try {
@@ -43,7 +44,6 @@ export default function App() {
   const [trendingTvList, setTrendingTvList] = useState([]);
 
   const [heroIndex, setHeroIndex] = useState(0);
-
   const [studioMoviesMap, setStudioMoviesMap] = useState({});
 
   const [gridItems, setGridItems] = useState([]);
@@ -54,24 +54,24 @@ export default function App() {
   const [selectedGenre, setSelectedGenre] = useState('');
   const [selectedStudio, setSelectedStudio] = useState(null);
   
-  // شروط الفلترة المتقدمة
+  // الفلاتر المتقدمة
   const [minRating, setMinRating] = useState(0);
   const [selectedYear, setSelectedYear] = useState('');
   
-  // المؤقتات للفلترة
   const [tempGenre, setTempGenre] = useState('');
   const [tempMinRating, setTempMinRating] = useState(0);
   const [tempSelectedYear, setTempSelectedYear] = useState('');
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // تفاصيل العناصر والمواسم والترشيحات
+  // التفاصيل والتبويبات المتقدمة
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedItemType, setSelectedItemType] = useState('movie');
   const [details, setDetails] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [trailerKey, setTrailerKey] = useState(null);
+  const [activeDetailTab, setActiveDetailTab] = useState('similar'); // similar | recommendations
 
-  // حالة المواسم المحددة للمسلسلات
+  // حالة المواسم والحلقات
   const [selectedSeasonNumber, setSelectedSeasonNumber] = useState(1);
   const [seasonDetails, setSeasonDetails] = useState(null);
   const [seasonLoading, setSeasonLoading] = useState(false);
@@ -83,13 +83,14 @@ export default function App() {
     setMinRating(0);
     setSelectedYear('');
     setPage(1);
+    setGridItems([]);
   }, []);
 
   useEffect(() => {
     try {
       localStorage.setItem('movix_my_list', JSON.stringify(myList));
     } catch (err) {
-      console.error('Error saving my list to localStorage:', err);
+      console.error('Error saving my list:', err);
     }
   }, [myList]);
 
@@ -108,7 +109,7 @@ export default function App() {
     return () => { isMounted = false; };
   }, [activeTab, lang]);
 
-  // جلب المحتوى الرئيسي
+  // جلب محتوى الصفحة الرئيسية
   useEffect(() => {
     if (activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear) {
       let isMounted = true;
@@ -149,7 +150,7 @@ export default function App() {
           setStudioMoviesMap(sMap);
 
         } catch (err) {
-          console.error('Error fetching home content:', err);
+          console.error('Error loading home content:', err);
         } finally {
           if (isMounted) setLoading(false);
         }
@@ -159,7 +160,7 @@ export default function App() {
     }
   }, [activeTab, searchQuery, selectedGenre, selectedStudio, minRating, selectedYear, lang]);
 
-  // التبديل التلقائي للبانر العلوي
+  // التبديل التلقائي للبانر
   useEffect(() => {
     if (trendingList.length === 0) return;
     const interval = setInterval(() => {
@@ -168,56 +169,64 @@ export default function App() {
     return () => clearInterval(interval);
   }, [trendingList]);
 
-  // جلب شبكة الأفلام / المسلسلات مع تطبيق الفلترة
+  // جلب الشبكة الموحدة والتمرير اللانهائي
+  const loadGridData = useCallback(async (pageNum = 1, append = false) => {
+    if (pageNum === 1) setLoading(true);
+    else setLoadingMore(true);
+
+    const type = activeTab === 'tv' ? 'tv' : 'movie';
+    let data;
+
+    try {
+      if (searchQuery.trim()) {
+        data = await searchMedia(searchQuery, type, pageNum, lang);
+      } else if (selectedGenre) {
+        data = await fetchByGenre(type, selectedGenre, pageNum, lang);
+      } else if (selectedStudio) {
+        const studioType = (selectedStudio.id === 213 || selectedStudio.id === 49) ? 'tv' : type;
+        data = await fetchByStudio(studioType, selectedStudio.id, pageNum, lang);
+      } else {
+        data = await fetchTrending(type, pageNum, lang);
+      }
+
+      let results = data?.results || [];
+
+      if (minRating > 0) {
+        results = results.filter((item) => (item.vote_average || 0) >= minRating);
+      }
+      if (selectedYear) {
+        results = results.filter((item) => {
+          const date = item.release_date || item.first_air_date || '';
+          return date.startsWith(selectedYear);
+        });
+      }
+
+      setGridItems((prev) => (append ? [...prev, ...results] : results));
+      setTotalPages(data?.total_pages || 1);
+    } catch (err) {
+      console.error('Error fetching grid items:', err);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [activeTab, searchQuery, selectedGenre, selectedStudio, minRating, selectedYear, lang]);
+
   useEffect(() => {
     if (activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio || minRating || selectedYear) {
-      let isMounted = true;
-      const loadGridContent = async () => {
-        setLoading(true);
-        const type = activeTab === 'tv' ? 'tv' : 'movie';
-        let data;
-
-        try {
-          if (searchQuery.trim()) {
-            data = await searchMedia(searchQuery, type, page, lang);
-          } else if (selectedGenre) {
-            data = await fetchByGenre(type, selectedGenre, page, lang);
-          } else if (selectedStudio) {
-            const studioType = (selectedStudio.id === 213 || selectedStudio.id === 49) ? 'tv' : type;
-            data = await fetchByStudio(studioType, selectedStudio.id, page, lang);
-          } else {
-            data = await fetchTrending(type, page, lang);
-          }
-
-          if (isMounted) {
-            let results = data?.results || [];
-
-            // تطبيق الفلترة المحلية للتقييم والسنة
-            if (minRating > 0) {
-              results = results.filter((item) => (item.vote_average || 0) >= minRating);
-            }
-            if (selectedYear) {
-              results = results.filter((item) => {
-                const date = item.release_date || item.first_air_date || '';
-                return date.startsWith(selectedYear);
-              });
-            }
-
-            setGridItems(results);
-            setTotalPages(data?.total_pages || 1);
-          }
-        } catch (err) {
-          console.error('Error fetching grid items:', err);
-        } finally {
-          if (isMounted) setLoading(false);
-        }
-      };
-      loadGridContent();
-      return () => { isMounted = false; };
+      setPage(1);
+      loadGridData(1, false);
     }
-  }, [activeTab, page, searchQuery, selectedGenre, selectedStudio, minRating, selectedYear, lang]);
+  }, [activeTab, searchQuery, selectedGenre, selectedStudio, minRating, selectedYear, lang, loadGridData]);
 
-  // جلب تفاصيل العمل المكتملة
+  const handleLoadMore = () => {
+    if (page < totalPages && !loadingMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      loadGridData(nextPage, true);
+    }
+  };
+
+  // جلب تفاصيل العمل
   useEffect(() => {
     if (!selectedItem) {
       setDetails(null);
@@ -236,7 +245,6 @@ export default function App() {
         );
         setTrailerKey(trailer ? trailer.key : null);
 
-        // إذا كان مسلسلاً، حدد الموسم الأول تلقائياً
         if (selectedItemType === 'tv' && data?.seasons?.length > 0) {
           const firstSeason = data.seasons.find(s => s.season_number > 0) || data.seasons[0];
           setSelectedSeasonNumber(firstSeason.season_number);
@@ -251,7 +259,7 @@ export default function App() {
     return () => { isMounted = false; };
   }, [selectedItem, selectedItemType, lang]);
 
-  // جلب تفاصيل الموسم عند اختيار موسم معين للمسلسل
+  // جلب تفاصيل حلقة المسلسل بأمان
   useEffect(() => {
     if (selectedItemType !== 'tv' || !selectedItem?.id || selectedSeasonNumber === null) {
       setSeasonDetails(null);
@@ -268,9 +276,12 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (isMounted) setSeasonDetails(data);
+        } else {
+          if (isMounted) setSeasonDetails({ episodes: [] });
         }
       } catch (err) {
         console.error('Error fetching season details:', err);
+        if (isMounted) setSeasonDetails({ episodes: [] });
       } finally {
         if (isMounted) setSeasonLoading(false);
       }
@@ -290,10 +301,10 @@ export default function App() {
       if (trailer) {
         setTrailerKey(trailer.key);
       } else {
-        alert(lang === 'ar-SA' ? 'عذراً، الإعلان التشويقي غير متوفر حالياً' : 'Trailer not available');
+        alert(lang === 'ar-SA' ? 'عذراً، الإعلان التشويقي غير متوفر' : 'Trailer not available');
       }
     } catch {
-      alert(lang === 'ar-SA' ? 'حدث خطأ في جلب العرض التشويقي' : 'Error loading trailer');
+      alert(lang === 'ar-SA' ? 'خطأ في جلب التريلر' : 'Error loading trailer');
     }
   }, [lang]);
 
@@ -334,7 +345,7 @@ export default function App() {
       dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}
     >
       {/* 1. الشريط العلوي Header */}
-      <header className="pt-4 px-5 flex items-center justify-between">
+      <header className="pt-4 px-4 flex items-center justify-between">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => {
           setActiveTab('home');
           resetFilters();
@@ -347,10 +358,10 @@ export default function App() {
           </span>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setLang((p) => (p === 'ar-SA' ? 'en-US' : 'ar-SA'))}
-            className="flex items-center gap-1 text-xs font-bold bg-[#111827] border border-[#1E293B] px-3 py-1 rounded-full text-[#94A3B8] active:scale-95 transition"
+            className="flex items-center gap-1 text-[11px] font-bold bg-[#111827] border border-[#1E293B] px-2.5 py-1 rounded-full text-[#94A3B8] active:scale-95 transition"
           >
             <span>{lang === 'ar-SA' ? 'EN' : 'العربية'}</span>
             <span>🌐</span>
@@ -363,15 +374,10 @@ export default function App() {
               setTempSelectedYear(selectedYear);
               setShowFilterModal(true);
             }}
-            className="text-white text-sm bg-[#111827] p-2 rounded-full border border-[#1E293B] active:scale-95 transition"
-            title={lang === 'ar-SA' ? 'الفلاتر والتصنيفات' : 'Filters'}
+            className="text-white text-xs bg-[#111827] p-2 rounded-full border border-[#1E293B] active:scale-95 transition"
           >
             ⚙️
           </button>
-
-          <div className="w-8 h-8 rounded-full bg-[#111827] border border-[#1E293B] flex items-center justify-center text-xs text-[#94A3B8]">
-            👤
-          </div>
         </div>
       </header>
 
@@ -386,7 +392,6 @@ export default function App() {
               setSearchQuery(e.target.value);
               setSelectedGenre('');
               setSelectedStudio(null);
-              setPage(1);
             }}
             className="w-full bg-[#111827] text-white placeholder-[#94A3B8] border border-[#1E293B] focus:border-[#3B82F6] px-4 py-2.5 rounded-2xl text-xs focus:outline-none transition"
           />
@@ -394,16 +399,16 @@ export default function App() {
         </div>
       </div>
 
-      <main className="px-4 pt-4 space-y-6">
+      <main className="px-3 pt-4 space-y-6">
 
-        {/* 3. البانر الرئيسي (Hero Section) */}
+        {/* 3. البانر الرئيسي */}
         {activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear && (
           loading ? (
-            <div className="h-[340px] bg-[#111827] rounded-3xl animate-pulse" />
+            <div className="h-[320px] bg-[#111827] rounded-3xl animate-pulse" />
           ) : (
             featuredItem && (
-              <div className="relative rounded-3xl overflow-hidden bg-[#111827] border border-[#1E293B] shadow-xl transition-all duration-500">
-                <div className="relative h-[340px] w-full">
+              <div className="relative rounded-3xl overflow-hidden bg-[#111827] border border-[#1E293B] shadow-xl">
+                <div className="relative h-[320px] w-full">
                   <img
                     src={`${BACKDROP_BASE_URL}${featuredItem.backdrop_path || featuredItem.poster_path}`}
                     alt={featuredItem.title || featuredItem.name}
@@ -413,30 +418,24 @@ export default function App() {
 
                   <div className="absolute bottom-4 inset-x-4 space-y-2">
                     <div className="inline-block bg-[#3B82F6]/20 border border-[#3B82F6]/40 text-[#60A5FA] text-[10px] px-2.5 py-0.5 rounded-full font-bold">
-                      {featuredItem.genre_ids && featuredItem.genre_ids.length > 0 ? genresMap[featuredItem.genre_ids[0]] || 'مغامرة' : 'مغامرة'}
+                      {featuredItem.genre_ids && featuredItem.genre_ids.length > 0 ? genresMap[featuredItem.genre_ids[0]] || 'مميز' : 'مميز'}
                     </div>
 
-                    <h2 className="text-2xl font-black text-white truncate">
+                    <h2 className="text-xl font-black text-white truncate">
                       {featuredItem.title || featuredItem.name}
                     </h2>
 
-                    <div className="flex items-center gap-2 text-[11px] text-[#94A3B8] font-medium">
-                      <span>{featuredItem.genre_ids?.map((id) => genresMap[id]).filter(Boolean).slice(0, 2).join(' • ') || 'مغامرة • عائلي'}</span>
-                      <span>•</span>
+                    <div className="flex items-center gap-2 text-[10px] text-[#94A3B8] font-medium">
                       <span>{featuredItem.release_date?.substring(0, 4) || '2026'}</span>
-                      <span className="bg-[#3B82F6]/20 border border-[#3B82F6]/30 text-[#60A5FA] px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1">
+                      <span className="bg-[#3B82F6]/20 border border-[#3B82F6]/30 text-[#60A5FA] px-1.5 py-0.5 rounded text-[10px] font-bold">
                         ★ {featuredItem.vote_average?.toFixed(1) || '7.8'}
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-[#94A3B8] line-clamp-2 leading-relaxed pt-1">
-                      {featuredItem.overview || (lang === 'ar-SA' ? 'رحلة جديدة عبر المحيط...' : 'No description available.')}
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-2 pt-2">
+                    <div className="grid grid-cols-2 gap-2 pt-1">
                       <button
                         onClick={() => handlePlayTrailer(featuredItem, 'movie')}
-                        className="bg-[#3B82F6] hover:bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
+                        className="bg-[#3B82F6] text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 active:scale-95 transition"
                       >
                         <span>▶</span>
                         <span>{lang === 'ar-SA' ? 'شاهد الآن' : 'Watch Now'}</span>
@@ -444,25 +443,12 @@ export default function App() {
 
                       <button
                         onClick={() => toggleMyList(featuredItem, 'movie')}
-                        className="bg-[#0F172A] border border-[#1E293B] text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
+                        className="bg-[#0F172A] border border-[#1E293B] text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 active:scale-95 transition"
                       >
                         <span>{isInMyList(featuredItem.id) ? '✓' : '＋'}</span>
-                        <span>{isInMyList(featuredItem.id) ? (lang === 'ar-SA' ? 'في قائمتي' : 'In List') : (lang === 'ar-SA' ? 'أضف إلى قائمتي' : 'Add to List')}</span>
+                        <span>{isInMyList(featuredItem.id) ? (lang === 'ar-SA' ? 'في قائمتي' : 'In List') : (lang === 'ar-SA' ? 'قائمتي' : 'Add List')}</span>
                       </button>
                     </div>
-
-                    <div className="flex justify-center items-center gap-1.5 pt-2">
-                      {trendingList.slice(0, 5).map((_, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setHeroIndex(idx)}
-                          className={`h-1.5 rounded-full transition-all duration-300 ${
-                            idx === heroIndex ? 'w-5 bg-[#3B82F6]' : 'w-1.5 bg-gray-600/50'
-                          }`}
-                        />
-                      ))}
-                    </div>
-
                   </div>
                 </div>
               </div>
@@ -470,7 +456,7 @@ export default function App() {
           )
         )}
 
-        {/* 4. أقسام العرض الأفقي بالصفحة الرئيسية */}
+        {/* 4. المقاطع الأفقية بالرئيسية */}
         {activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear && (
           <div className="space-y-6">
             <HorizontalSection
@@ -513,16 +499,15 @@ export default function App() {
               lang={lang}
             />
 
-            {/* صفوف أفلام شركات الإنتاج */}
+            {/* شركات الإنتاج */}
             <div className="pt-2 space-y-6 border-t border-[#1E293B]">
-              <h2 className="text-base font-black text-white tracking-wide border-r-4 border-[#3B82F6] pr-2">
-                {lang === 'ar-SA' ? '🏢 أعمال شركات الإنتاج' : '🏢 Production Studios Content'}
+              <h2 className="text-sm font-black text-white border-r-4 border-[#3B82F6] pr-2">
+                {lang === 'ar-SA' ? '🏢 شركات الإنتاج' : '🏢 Production Studios'}
               </h2>
 
               {STUDIOS.map((studio) => {
                 const studioItems = studioMoviesMap[studio.id] || [];
                 if (studioItems.length === 0 && !loading) return null;
-
                 const itemType = (studio.id === 213 || studio.id === 49) ? 'tv' : 'movie';
 
                 return (
@@ -545,20 +530,20 @@ export default function App() {
           </div>
         )}
 
-        {/* 5. عرض قائمة "قائمتي" */}
+        {/* 5. عرض قائمة المفضلة (3 أعمدة) */}
         {activeTab === 'mylist' && !searchQuery && (
           <div className="space-y-4 pt-2">
-            <h3 className="text-base font-black text-white border-r-4 border-[#3B82F6] pr-2">
+            <h3 className="text-sm font-black text-white border-r-4 border-[#3B82F6] pr-2">
               {lang === 'ar-SA' ? 'قائمتي المفضلّة' : 'My List'}
             </h3>
 
             {myList.length === 0 ? (
               <div className="text-center py-16 text-[#94A3B8] space-y-2">
                 <span className="text-3xl block">🔖</span>
-                <p className="text-xs">{lang === 'ar-SA' ? 'لم تقم بإضافة أي أعمال لقائمتك بعد.' : 'No items added to your list yet.'}</p>
+                <p className="text-xs">{lang === 'ar-SA' ? 'لم تقم بإضافة أي أعمال لقائمتك بعد.' : 'No items in your list.'}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 {myList.map((item) => (
                   <MovieCard
                     key={item.id}
@@ -572,15 +557,15 @@ export default function App() {
           </div>
         )}
 
-        {/* 6. العرض الشبكي (أفلام، مسلسلات، فلترة المتقدمة) */}
+        {/* 6. العرض الشبكي (3 أعمدة + التمرير اللانهائي) */}
         {(activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio || minRating > 0 || selectedYear) && activeTab !== 'mylist' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-black text-white border-r-4 border-[#3B82F6] pr-2">
+              <h3 className="text-sm font-black text-white border-r-4 border-[#3B82F6] pr-2">
                 {searchQuery
                   ? (lang === 'ar-SA' ? 'نتائج البحث' : 'Search Results')
                   : selectedStudio
-                  ? (lang === 'ar-SA' ? `أعمال شركة: ${selectedStudio.name}` : `Studio: ${selectedStudio.name}`)
+                  ? (lang === 'ar-SA' ? `شركة: ${selectedStudio.name}` : `Studio: ${selectedStudio.name}`)
                   : selectedGenre
                   ? genres.find((g) => g.id === Number(selectedGenre))?.name
                   : activeTab === 'movies'
@@ -591,26 +576,27 @@ export default function App() {
               {(selectedGenre || selectedStudio || minRating > 0 || selectedYear) && (
                 <button
                   onClick={resetFilters}
-                  className="text-[10px] text-[#60A5FA] bg-[#3B82F6]/10 px-2.5 py-1 rounded-full border border-[#3B82F6]/30"
+                  className="text-[10px] text-[#60A5FA] bg-[#3B82F6]/10 px-2 py-0.5 rounded-full border border-[#3B82F6]/30"
                 >
-                  {lang === 'ar-SA' ? 'إلغاء الفلتر ✕' : 'Clear Filter ✕'}
+                  {lang === 'ar-SA' ? 'إلغاء الفلتر ✕' : 'Clear ✕'}
                 </button>
               )}
             </div>
 
             {loading ? (
-              <div className="grid grid-cols-2 gap-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="bg-[#111827] rounded-2xl h-48 animate-pulse" />
+              <div className="grid grid-cols-3 gap-2">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <div key={i} className="bg-[#111827] rounded-xl h-36 animate-pulse" />
                 ))}
               </div>
             ) : gridItems.length === 0 ? (
               <div className="text-center py-16 text-[#94A3B8]">
-                <p className="text-xs">{lang === 'ar-SA' ? 'لم يتم العثور على نتائج تطابق معاييرك.' : 'No results found matching your criteria.'}</p>
+                <p className="text-xs">{lang === 'ar-SA' ? 'لم يتم العثور على نتائج تطابق البحث.' : 'No results found.'}</p>
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                {/* 3 Columns Grid */}
+                <div className="grid grid-cols-3 gap-2">
                   {gridItems.map((item) => (
                     <MovieCard
                       key={item.id}
@@ -621,25 +607,20 @@ export default function App() {
                   ))}
                 </div>
 
-                <div className="flex justify-center items-center gap-3 pt-4">
-                  <button
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                    className="px-3 py-1.5 bg-[#111827] border border-[#1E293B] rounded-xl text-xs font-bold text-[#94A3B8] disabled:opacity-30 active:scale-95 transition"
-                  >
-                    {lang === 'ar-SA' ? 'السابق' : 'Prev'}
-                  </button>
-                  <span className="text-xs font-bold text-[#94A3B8]">
-                    {page} / {totalPages}
-                  </span>
-                  <button
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((p) => p + 1)}
-                    className="px-3 py-1.5 bg-[#111827] border border-[#1E293B] rounded-xl text-xs font-bold text-[#94A3B8] disabled:opacity-30 active:scale-95 transition"
-                  >
-                    {lang === 'ar-SA' ? 'التالي' : 'Next'}
-                  </button>
-                </div>
+                {/* زر تحميل المزيد لتبسيط التمرير اللانهائي */}
+                {page < totalPages && (
+                  <div className="pt-4 text-center">
+                    <button
+                      onClick={handleLoadMore}
+                      disabled={loadingMore}
+                      className="w-full bg-[#111827] hover:bg-[#1E293B] border border-[#1E293B] text-[#3B82F6] font-bold py-2.5 rounded-xl text-xs active:scale-95 transition"
+                    >
+                      {loadingMore
+                        ? (lang === 'ar-SA' ? 'جاري التحميل...' : 'Loading...')
+                        : (lang === 'ar-SA' ? 'تحميل المزيد ⚡' : 'Load More ⚡')}
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -647,80 +628,47 @@ export default function App() {
 
       </main>
 
-      {/* 7. الشريط السفلي Navigation Bar */}
+      {/* 7. الشريط السفلي */}
       <div className="fixed bottom-0 inset-x-0 mx-auto max-w-md bg-[#05070A]/95 border-t border-[#1E293B] backdrop-blur-md z-40 py-2">
         <nav className="flex items-center justify-around px-2">
           <NavItem
-            icon={
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-              </svg>
-            }
+            icon={<svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>}
             label={lang === 'ar-SA' ? 'الرئيسية' : 'Home'}
             active={activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear}
-            onClick={() => {
-              setActiveTab('home');
-              resetFilters();
-            }}
+            onClick={() => { setActiveTab('home'); resetFilters(); }}
           />
           <NavItem
-            icon={
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>
-              </svg>
-            }
+            icon={<svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg>}
             label={lang === 'ar-SA' ? 'الأفلام' : 'Movies'}
             active={activeTab === 'movies' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear}
-            onClick={() => {
-              setActiveTab('movies');
-              resetFilters();
-            }}
+            onClick={() => { setActiveTab('movies'); resetFilters(); }}
           />
           <NavItem
-            icon={
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
-              </svg>
-            }
+            icon={<svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/></svg>}
             label={lang === 'ar-SA' ? 'المسلسلات' : 'TV Series'}
             active={activeTab === 'tv' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear}
-            onClick={() => {
-              setActiveTab('tv');
-              resetFilters();
-            }}
+            onClick={() => { setActiveTab('tv'); resetFilters(); }}
           />
           <NavItem
-            icon={
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-              </svg>
-            }
+            icon={<svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>}
             label={lang === 'ar-SA' ? 'قائمتي' : 'My List'}
             active={activeTab === 'mylist'}
-            onClick={() => {
-              setActiveTab('mylist');
-              resetFilters();
-            }}
+            onClick={() => { setActiveTab('mylist'); resetFilters(); }}
           />
         </nav>
       </div>
 
-      {/* 8. نافذة الفلاتر المتقدمة (Filter Modal) */}
+      {/* 8. نافذة الفلاتر المتقدمة */}
       {showFilterModal && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-[#111827] border border-[#1E293B] rounded-3xl w-full max-w-xs p-5 space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#1E293B] pb-2.5">
-              <h3 className="text-xs font-bold text-white">
-                {lang === 'ar-SA' ? 'الفلترة المتقدمة' : 'Advanced Filters'}
-              </h3>
-              <button onClick={() => setShowFilterModal(false)} className="text-[#94A3B8] hover:text-white text-xs">✕</button>
+              <h3 className="text-xs font-bold text-white">{lang === 'ar-SA' ? 'الفلترة المتقدمة' : 'Advanced Filters'}</h3>
+              <button onClick={() => setShowFilterModal(false)} className="text-[#94A3B8] text-xs">✕</button>
             </div>
 
-            {/* تصنيف Genre */}
             <div className="space-y-2">
-              <label className="text-[11px] font-bold text-[#94A3B8] block">
-                {lang === 'ar-SA' ? 'التصنيف' : 'Genre'}
-              </label>
+              <label className="text-[11px] font-bold text-[#94A3B8] block">{lang === 'ar-SA' ? 'التصنيف' : 'Genre'}</label>
               <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1">
                 <button
                   onClick={() => setTempGenre('')}
@@ -735,9 +683,7 @@ export default function App() {
                     key={g.id}
                     onClick={() => setTempGenre(g.id)}
                     className={`py-1.5 rounded-xl text-xs font-bold truncate border px-1 transition ${
-                      String(tempGenre) === String(g.id)
-                        ? 'bg-[#3B82F6] text-white border-[#3B82F6]'
-                        : 'bg-[#05070A] text-[#94A3B8] border-[#1E293B]'
+                      String(tempGenre) === String(g.id) ? 'bg-[#3B82F6] text-white border-[#3B82F6]' : 'bg-[#05070A] text-[#94A3B8] border-[#1E293B]'
                     }`}
                   >
                     {g.name}
@@ -746,7 +692,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* أدنى تقييم Minimum Rating */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold text-[#94A3B8] flex justify-between">
                 <span>{lang === 'ar-SA' ? 'الحد الأدنى للتقييم' : 'Min Rating'}</span>
@@ -763,11 +708,8 @@ export default function App() {
               />
             </div>
 
-            {/* سنة الإنتاج Year */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-[#94A3B8] block">
-                {lang === 'ar-SA' ? 'سنة الإنتاج' : 'Release Year'}
-              </label>
+              <label className="text-[11px] font-bold text-[#94A3B8] block">{lang === 'ar-SA' ? 'سنة الإنتاج' : 'Release Year'}</label>
               <select
                 value={tempSelectedYear}
                 onChange={(e) => setTempSelectedYear(e.target.value)}
@@ -787,7 +729,6 @@ export default function App() {
                 setSelectedYear(tempSelectedYear);
                 setSelectedStudio(null);
                 setSearchQuery('');
-                setPage(1);
                 setShowFilterModal(false);
               }}
               className="w-full bg-[#3B82F6] hover:bg-blue-600 text-white font-extrabold py-2.5 rounded-2xl text-xs active:scale-95 transition"
@@ -798,7 +739,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 9. نافذة التفاصيل والمواسم والتوصيات المكتملة (Details Modal) */}
+      {/* 9. نافذة التفاصيل الشاملة مع الحلقات والتبويبات المشابهة */}
       {selectedItem && (
         <div className="fixed inset-0 z-50 bg-[#05070A] overflow-y-auto min-h-screen text-[#F8FAFC]">
           <button
@@ -814,13 +755,9 @@ export default function App() {
             </div>
           ) : (
             <div className="pb-20">
-              <div className="relative w-full h-[320px] bg-[#05070A]">
+              <div className="relative w-full h-[300px] bg-[#05070A]">
                 {details?.backdrop_path ? (
-                  <img
-                    src={`${BACKDROP_BASE_URL}${details.backdrop_path}`}
-                    alt={details?.title || details?.name}
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={`${BACKDROP_BASE_URL}${details.backdrop_path}`} alt={details?.title || details?.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-[#94A3B8] text-xs">No Image</div>
                 )}
@@ -831,13 +768,11 @@ export default function App() {
                     <span className="bg-[#3B82F6] text-white font-extrabold px-1.5 py-0.5 rounded text-[10px]">
                       ★ {details?.vote_average?.toFixed(1) || '0.0'}
                     </span>
-                    <span className="text-[11px] text-[#94A3B8]">
+                    <span className="text-[10px] text-[#94A3B8]">
                       {details?.release_date?.substring(0, 4) || details?.first_air_date?.substring(0, 4)}
                     </span>
                   </div>
-                  <h1 className="text-2xl font-black text-white">
-                    {details?.title || details?.name}
-                  </h1>
+                  <h1 className="text-xl font-black text-white">{details?.title || details?.name}</h1>
                 </div>
               </div>
 
@@ -845,47 +780,38 @@ export default function App() {
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex flex-wrap gap-1.5">
                     {details?.genres?.map((g) => (
-                      <span
-                        key={g.id}
-                        className="bg-[#111827] text-[#CBD5E1] px-3 py-1 rounded-lg text-xs font-bold border border-[#1E293B]"
-                      >
+                      <span key={g.id} className="bg-[#111827] text-[#CBD5E1] px-2.5 py-1 rounded-lg text-[10px] font-bold border border-[#1E293B]">
                         {g.name}
                       </span>
                     ))}
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => toggleMyList(details, selectedItemType)}
-                      className="bg-[#111827] border border-[#1E293B] text-white font-bold px-3 py-2 rounded-xl text-xs active:scale-95 transition"
-                    >
+                    <button onClick={() => toggleMyList(details, selectedItemType)} className="bg-[#111827] border border-[#1E293B] text-white font-bold px-3 py-2 rounded-xl text-xs active:scale-95 transition">
                       {isInMyList(details?.id) ? '✓' : '＋'}
                     </button>
 
-                    <button
-                      onClick={() => handlePlayTrailer(details, selectedItemType)}
-                      className="bg-[#3B82F6] text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 active:scale-95 transition shadow-lg shadow-[#3B82F6]/30"
-                    >
+                    <button onClick={() => handlePlayTrailer(details, selectedItemType)} className="bg-[#3B82F6] text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 active:scale-95 transition shadow-lg shadow-[#3B82F6]/30">
                       <span>▶</span>
                       <span>{lang === 'ar-SA' ? 'التريلر' : 'Trailer'}</span>
                     </button>
                   </div>
                 </div>
 
-                {/* القصة Overview */}
-                <div className="space-y-2 bg-[#111827]/60 p-4 rounded-2xl border border-[#1E293B]">
-                  <h3 className={`text-sm font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
+                {/* القصة */}
+                <div className="space-y-1.5 bg-[#111827]/60 p-3.5 rounded-2xl border border-[#1E293B]">
+                  <h3 className={`text-xs font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
                     {lang === 'ar-SA' ? 'القصة' : 'Overview'}
                   </h3>
-                  <p className="text-[#F1F5F9] text-sm leading-relaxed font-normal">
+                  <p className="text-[#F1F5F9] text-xs leading-relaxed">
                     {details?.overview || (lang === 'ar-SA' ? 'لا يوجد وصف متاح.' : 'No overview available.')}
                   </p>
                 </div>
 
-                {/* جدول المواسم والحلقات (للمسلسلات فقط) */}
+                {/* المواسم والحلقات */}
                 {selectedItemType === 'tv' && details?.seasons?.length > 0 && (
                   <div className="space-y-3">
-                    <h3 className={`text-sm font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
+                    <h3 className={`text-xs font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
                       {lang === 'ar-SA' ? 'المواسم والحلقات' : 'Seasons & Episodes'}
                     </h3>
 
@@ -907,78 +833,89 @@ export default function App() {
                         ))}
                     </div>
 
-                    {/* قائمة حلقات الموسم المختار */}
+                    {/* قائمة الحلقات */}
                     {seasonLoading ? (
-                      <div className="py-8 text-center text-xs text-[#94A3B8]">{lang === 'ar-SA' ? 'جاري تحميل الحلقات...' : 'Loading episodes...'}</div>
-                    ) : (
-                      seasonDetails?.episodes?.length > 0 && (
-                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                          {seasonDetails.episodes.map((ep) => (
-                            <div key={ep.id} className="flex gap-3 bg-[#111827] p-2 rounded-xl border border-[#1E293B] items-center">
-                              <img
-                                src={ep.still_path ? `${IMAGE_BASE_URL}${ep.still_path}` : 'https://via.placeholder.com/100x60?text=EP'}
-                                alt={ep.name}
-                                className="w-20 h-12 rounded-lg object-cover flex-shrink-0"
-                              />
-                              <div className="overflow-hidden space-y-0.5">
-                                <h4 className="text-xs font-bold text-white truncate">
-                                  {ep.episode_number}. {ep.name}
-                                </h4>
-                                <p className="text-[10px] text-[#94A3B8] line-clamp-1">{ep.overview || (lang === 'ar-SA' ? 'بدون ملخص' : 'No summary')}</p>
-                              </div>
+                      <div className="py-6 text-center text-xs text-[#94A3B8]">{lang === 'ar-SA' ? 'جاري تحميل الحلقات...' : 'Loading episodes...'}</div>
+                    ) : seasonDetails?.episodes && seasonDetails.episodes.length > 0 ? (
+                      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                        {seasonDetails.episodes.map((ep) => (
+                          <div key={ep.id} className="flex gap-3 bg-[#111827] p-2 rounded-xl border border-[#1E293B] items-center">
+                            <img
+                              src={ep.still_path ? `${IMAGE_BASE_URL}${ep.still_path}` : 'https://via.placeholder.com/100x60?text=EP'}
+                              alt={ep.name}
+                              className="w-16 h-10 rounded-lg object-cover flex-shrink-0"
+                            />
+                            <div className="overflow-hidden space-y-0.5">
+                              <h4 className="text-[11px] font-bold text-white truncate">
+                                {ep.episode_number}. {ep.name}
+                              </h4>
+                              <p className="text-[9px] text-[#94A3B8] line-clamp-1">{ep.overview || (lang === 'ar-SA' ? 'بدون ملخص' : 'No summary')}</p>
                             </div>
-                          ))}
-                        </div>
-                      )
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-xs text-[#94A3B8]">{lang === 'ar-SA' ? 'لا توجد حلقات متاحة لهذا الموسم.' : 'No episodes available.'}</div>
                     )}
                   </div>
                 )}
 
-                {/* طاقم التمثيل Cast */}
+                {/* طاقم التمثيل */}
                 {details?.credits?.cast?.length > 0 && (
                   <div className="space-y-3">
-                    <h3 className={`text-sm font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
+                    <h3 className={`text-xs font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
                       {lang === 'ar-SA' ? 'طاقم التمثيل' : 'Cast'}
                     </h3>
-                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+                    <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none">
                       {details.credits.cast.slice(0, 10).map((actor) => (
-                        <div key={actor.id} className="flex-shrink-0 w-24 bg-[#111827] rounded-2xl p-2.5 text-center border border-[#1E293B] shadow-md">
+                        <div key={actor.id} className="flex-shrink-0 w-20 bg-[#111827] rounded-xl p-2 text-center border border-[#1E293B]">
                           <img
                             src={actor.profile_path ? `${IMAGE_BASE_URL}${actor.profile_path}` : 'https://via.placeholder.com/100?text=Actor'}
                             alt={actor.name}
-                            className="w-14 h-14 rounded-full object-cover mx-auto mb-2 border-2 border-[#3B82F6]/40 shadow-sm"
-                            loading="lazy"
+                            className="w-12 h-12 rounded-full object-cover mx-auto mb-1 border border-[#3B82F6]/40"
                           />
-                          <p className="text-xs font-bold text-white truncate">{actor.name}</p>
-                          {actor.character && (
-                            <p className="text-[10px] text-[#94A3B8] truncate mt-0.5">{actor.character}</p>
-                          )}
+                          <p className="text-[10px] font-bold text-white truncate">{actor.name}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* الأعمال المشابهة والتوصيات Similar & Recommendations */}
-                {(details?.similar?.results?.length > 0 || details?.recommendations?.results?.length > 0) && (
-                  <div className="space-y-3 pt-2">
-                    <h3 className={`text-sm font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
-                      {lang === 'ar-SA' ? 'أعمال قد تعجبك (مشابهة)' : 'Similar Content'}
-                    </h3>
+                {/* تبويب متكامل (أعمال مشابهة + توصيات) */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center gap-4 border-b border-[#1E293B] pb-2">
+                    <button
+                      onClick={() => setActiveDetailTab('similar')}
+                      className={`text-xs font-bold pb-1 transition ${
+                        activeDetailTab === 'similar' ? 'text-[#3B82F6] border-b-2 border-[#3B82F6]' : 'text-[#94A3B8]'
+                      }`}
+                    >
+                      {lang === 'ar-SA' ? 'أعمال مشابهة' : 'Similar Content'}
+                    </button>
 
-                    <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none">
-                      {(details?.similar?.results || details?.recommendations?.results || []).slice(0, 10).map((simItem) => (
-                        <div key={simItem.id} className="w-28 flex-shrink-0">
-                          <MovieCard
-                            item={simItem}
-                            genresMap={genresMap}
-                            onClick={() => handleOpenDetails(simItem, selectedItemType)}
-                          />
-                        </div>
-                      ))}
-                    </div>
+                    <button
+                      onClick={() => setActiveDetailTab('recommendations')}
+                      className={`text-xs font-bold pb-1 transition ${
+                        activeDetailTab === 'recommendations' ? 'text-[#3B82F6] border-b-2 border-[#3B82F6]' : 'text-[#94A3B8]'
+                      }`}
+                    >
+                      {lang === 'ar-SA' ? 'توصيات مقترحة' : 'Recommendations'}
+                    </button>
                   </div>
-                )}
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {((activeDetailTab === 'similar' ? details?.similar?.results : details?.recommendations?.results) || [])
+                      .slice(0, 6)
+                      .map((item) => (
+                        <MovieCard
+                          key={item.id}
+                          item={item}
+                          genresMap={genresMap}
+                          onClick={() => handleOpenDetails(item, selectedItemType)}
+                        />
+                      ))}
+                  </div>
+                </div>
 
               </div>
             </div>
@@ -986,13 +923,13 @@ export default function App() {
         </div>
       )}
 
-      {/* 10. مشغل التريلر المباشر */}
+      {/* 10. مشغل التريلر */}
       {trailerKey && (
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-3 backdrop-blur-sm">
           <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-[#1E293B]">
             <button
               onClick={() => setTrailerKey(null)}
-              className="absolute top-2 right-2 bg-[#3B82F6] text-white w-7 h-7 rounded-full text-xs font-bold z-10 active:scale-95 flex items-center justify-center"
+              className="absolute top-2 right-2 bg-[#3B82F6] text-white w-7 h-7 rounded-full text-xs font-bold z-10 flex items-center justify-center"
             >
               ✕
             </button>
@@ -1014,28 +951,26 @@ export default function App() {
 
 function HorizontalSection({ title, items, genresMap, loading, onItemClick, onViewAll, lang }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-black text-white tracking-wide border-r-4 border-[#3B82F6] pr-2">
-          {title}
-        </h3>
+        <h3 className="text-sm font-black text-white border-r-4 border-[#3B82F6] pr-2">{title}</h3>
         {onViewAll && (
-          <button onClick={onViewAll} className="text-xs text-[#60A5FA] hover:text-blue-400 font-bold active:scale-95 transition">
+          <button onClick={onViewAll} className="text-[11px] text-[#60A5FA] font-bold active:scale-95 transition">
             {lang === 'ar-SA' ? 'عرض الكل >' : 'See All >'}
           </button>
         )}
       </div>
 
       {loading ? (
-        <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="w-28 h-40 bg-[#111827] rounded-2xl animate-pulse flex-shrink-0" />
+            <div key={i} className="w-24 h-36 bg-[#111827] rounded-xl animate-pulse flex-shrink-0" />
           ))}
         </div>
       ) : (
-        <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           {items.map((item) => (
-            <div key={item.id} className="w-28 flex-shrink-0">
+            <div key={item.id} className="w-24 flex-shrink-0">
               <MovieCard item={item} genresMap={genresMap} onClick={() => onItemClick(item)} />
             </div>
           ))}
@@ -1046,14 +981,12 @@ function HorizontalSection({ title, items, genresMap, loading, onItemClick, onVi
 }
 
 function MovieCard({ item, genresMap = {}, onClick }) {
-  const genreName = item.genre_ids && item.genre_ids.length > 0 ? genresMap[item.genre_ids[0]] : null;
-
   return (
     <div
       onClick={onClick}
-      className="bg-[#111827] rounded-2xl overflow-hidden border border-[#1E293B] hover:border-gray-700 transition cursor-pointer space-y-1.5 p-1 group active:scale-95"
+      className="bg-[#111827] rounded-xl overflow-hidden border border-[#1E293B] hover:border-gray-700 transition cursor-pointer p-1 space-y-1 group active:scale-95"
     >
-      <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[#05070A]">
+      <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[#05070A]">
         {item.poster_path ? (
           <img
             src={`${IMAGE_BASE_URL}${item.poster_path}`}
@@ -1062,25 +995,19 @@ function MovieCard({ item, genresMap = {}, onClick }) {
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-[#94A3B8] text-[9px]">No Image</div>
+          <div className="w-full h-full flex items-center justify-center text-[#94A3B8] text-[8px]">No Image</div>
         )}
-        <div className="absolute top-1.5 right-1.5 bg-black/80 border border-[#1E293B] px-1.5 py-0.5 rounded-md text-[9px] font-extrabold text-white flex items-center gap-0.5">
+        <div className="absolute top-1 right-1 bg-black/80 border border-[#1E293B] px-1 py-0.5 rounded text-[8px] font-bold text-white flex items-center gap-0.5">
           <span>{item.vote_average ? item.vote_average.toFixed(1) : '7.5'}</span>
           <span className="text-[#3B82F6]">★</span>
         </div>
       </div>
 
-      <div className="px-1 pb-1 space-y-0.5">
-        <h4 className="text-[11px] font-bold text-white truncate">{item.title || item.name}</h4>
-        <div className="flex items-center gap-1 text-[9px] text-[#94A3B8]">
-          <span>{item.release_date?.substring(0, 4) || item.first_air_date?.substring(0, 4) || '2026'}</span>
-          {genreName && (
-            <>
-              <span>•</span>
-              <span className="truncate">{genreName}</span>
-            </>
-          )}
-        </div>
+      <div className="px-0.5 pb-0.5">
+        <h4 className="text-[10px] font-bold text-white truncate">{item.title || item.name}</h4>
+        <p className="text-[8px] text-[#94A3B8] truncate">
+          {item.release_date?.substring(0, 4) || item.first_air_date?.substring(0, 4) || '2026'}
+        </p>
       </div>
     </div>
   );
@@ -1091,9 +1018,7 @@ function NavItem({ icon, label, active, onClick }) {
     <button
       onClick={onClick}
       className={`flex flex-col items-center gap-1 px-3 py-1 transition duration-200 active:scale-95 ${
-        active
-          ? 'text-[#3B82F6] font-black'
-          : 'text-[#94A3B8] hover:text-white font-medium'
+        active ? 'text-[#3B82F6] font-black' : 'text-[#94A3B8] hover:text-white font-medium'
       }`}
     >
       <div className="w-5 h-5">{icon}</div>
