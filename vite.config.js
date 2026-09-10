@@ -3,8 +3,5 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true
-  }
+  base: '/ship-it/', // أو اسم مستودعك الخاص إذا تغير
 })
