@@ -951,26 +951,26 @@ export default function App() {
 
 function HorizontalSection({ title, items, genresMap, loading, onItemClick, onViewAll, lang }) {
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-black text-white border-r-4 border-[#3B82F6] pr-2">{title}</h3>
+        <h3 className="text-base font-black text-white border-r-4 border-[#3B82F6] pr-2.5">{title}</h3>
         {onViewAll && (
-          <button onClick={onViewAll} className="text-[11px] text-[#60A5FA] font-bold active:scale-95 transition">
+          <button onClick={onViewAll} className="text-xs text-[#60A5FA] font-bold active:scale-95 transition">
             {lang === 'ar-SA' ? 'عرض الكل >' : 'See All >'}
           </button>
         )}
       </div>
 
       {loading ? (
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="w-24 h-36 bg-[#111827] rounded-xl animate-pulse flex-shrink-0" />
+            <div key={i} className="w-32 h-48 bg-[#111827] rounded-2xl animate-pulse flex-shrink-0" />
           ))}
         </div>
       ) : (
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
           {items.map((item) => (
-            <div key={item.id} className="w-24 flex-shrink-0">
+            <div key={item.id} className="w-32 flex-shrink-0">
               <MovieCard item={item} genresMap={genresMap} onClick={() => onItemClick(item)} />
             </div>
           ))}
@@ -984,9 +984,9 @@ function MovieCard({ item, genresMap = {}, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="bg-[#111827] rounded-xl overflow-hidden border border-[#1E293B] hover:border-gray-700 transition cursor-pointer p-1 space-y-1 group active:scale-95"
+      className="bg-[#111827] rounded-2xl overflow-hidden border border-[#1E293B] hover:border-gray-700 transition cursor-pointer p-1.5 space-y-1.5 group active:scale-95 shadow-md"
     >
-      <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[#05070A]">
+      <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[#05070A]">
         {item.poster_path ? (
           <img
             src={`${IMAGE_BASE_URL}${item.poster_path}`}
@@ -995,17 +995,17 @@ function MovieCard({ item, genresMap = {}, onClick }) {
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-[#94A3B8] text-[8px]">No Image</div>
+          <div className="w-full h-full flex items-center justify-center text-[#94A3B8] text-xs">No Image</div>
         )}
-        <div className="absolute top-1 right-1 bg-black/80 border border-[#1E293B] px-1 py-0.5 rounded text-[8px] font-bold text-white flex items-center gap-0.5">
-          <span>{item.vote_average ? item.vote_average.toFixed(1) : '7.5'}</span>
+        <div className="absolute top-1.5 right-1.5 bg-black/85 backdrop-blur-sm border border-[#1E293B] px-1.5 py-0.5 rounded-lg text-[10px] font-black text-white flex items-center gap-1 shadow">
           <span className="text-[#3B82F6]">★</span>
+          <span>{item.vote_average ? item.vote_average.toFixed(1) : '7.5'}</span>
         </div>
       </div>
 
-      <div className="px-0.5 pb-0.5">
-        <h4 className="text-[10px] font-bold text-white truncate">{item.title || item.name}</h4>
-        <p className="text-[8px] text-[#94A3B8] truncate">
+      <div className="px-1 pb-1 space-y-0.5">
+        <h4 className="text-xs font-bold text-white truncate leading-tight">{item.title || item.name}</h4>
+        <p className="text-[10px] font-medium text-[#94A3B8] truncate">
           {item.release_date?.substring(0, 4) || item.first_air_date?.substring(0, 4) || '2026'}
         </p>
       </div>
