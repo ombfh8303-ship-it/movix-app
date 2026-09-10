@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { fetchTrending, searchMedia } from './services/tmdb';
 import MovieCard from './components/MovieCard';
+import MovieDetailsModal from './components/MovieDetailsModal';
 
 export default function App() {
   const [items, setItems] = useState([]);
-  const [contentType, setContentType] = useState('movie'); // 'movie' أو 'tv'
+  const [contentType, setContentType] = useState('movie');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [lang, setLang] = useState('ar-SA');
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -39,7 +41,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-black text-white p-4 md:p-8" dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}>
-      {/* الهيدر */}
       <header className="flex flex-wrap justify-between items-center gap-4 mb-8">
         <div className="flex items-center gap-2">
           <span className="text-3xl">🎬</span>
@@ -53,7 +54,6 @@ export default function App() {
         </button>
       </header>
 
-      {/* شريط البحث وتحديد النوع */}
       <div className="flex flex-col md:flex-row gap-4 mb-8">
         <input
           type="text"
@@ -86,7 +86,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* قائمة العناصر */}
       {loading ? (
         <div className="text-center py-20 text-gray-500">
           {lang === 'ar-SA' ? 'جاري التحميل...' : 'Loading...'}
@@ -94,12 +93,13 @@ export default function App() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
           {items.map((item) => (
-            <MovieCard key={item.id} item={item} type={contentType} />
+            <div key={item.id} onClick={() => setSelectedItem(item)}>
+              <MovieCard item={item} type={contentType} />
+            </div>
           ))}
         </div>
       )}
 
-      {/* التصفح بين الصفحات (Pagination) */}
       <div className="flex justify-center items-center gap-4 mt-12 py-4">
         <button
           disabled={page <= 1}
@@ -119,6 +119,15 @@ export default function App() {
           {lang === 'ar-SA' ? 'التالي' : 'Next'}
         </button>
       </div>
+
+      {selectedItem && (
+        <MovieDetailsModal
+          item={selectedItem}
+          type={contentType}
+          lang={lang}
+          onClose={() => setSelectedItem(null)}
+        />
+      )}
     </div>
   );
 }
