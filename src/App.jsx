@@ -7,6 +7,7 @@ import {
   fetchDetails,
   fetchGenres,
   fetchByGenre,
+  fetchByStudio,
   IMAGE_BASE_URL,
   BACKDROP_BASE_URL
 } from './services/tmdb';
@@ -123,20 +124,24 @@ export default function App() {
           setTopRatedList(topRated?.results || []);
           setTrendingTvList(tvTrending?.results || []);
 
-          // جلب أفلام الشركات بشكل متوازي
-          const studioResults = await Promise.all(
+          // جلب محتوى الشركات بشكل صحيح ومستقل باستخدام fetchByStudio
+          const studioResults = await Promise.allSettled(
             STUDIOS.map(async (s) => {
-              const res = await fetchByGenre('movie', '', 1, lang, s.id);
+              const type = (s.id === 213 || s.id === 49) ? 'tv' : 'movie';
+              const res = await fetchByStudio(type, s.id, 1, lang);
               return { id: s.id, items: res?.results || [] };
             })
           );
 
           if (!isMounted) return;
 
-          const sMap = studioResults.reduce((acc, sr) => {
-            acc[sr.id] = sr.items;
-            return acc;
-          }, {});
+          const sMap = {};
+          studioResults.forEach((sr) => {
+            if (sr.status === 'fulfilled') {
+              sMap[sr.value.id] = sr.value.items;
+            }
+          });
+
           setStudioMoviesMap(sMap);
 
         } catch (err) {
@@ -174,7 +179,8 @@ export default function App() {
           } else if (selectedGenre) {
             data = await fetchByGenre(type, selectedGenre, page, lang);
           } else if (selectedStudio) {
-            data = await fetchByGenre(type, '', page, lang, selectedStudio.id);
+            const studioType = (selectedStudio.id === 213 || selectedStudio.id === 49) ? 'tv' : type;
+            data = await fetchByStudio(studioType, selectedStudio.id, page, lang);
           } else {
             data = await fetchTrending(type, page, lang);
           }
@@ -501,6 +507,8 @@ export default function App() {
                 const studioItems = studioMoviesMap[studio.id] || [];
                 if (studioItems.length === 0 && !loading) return null;
 
+                const itemType = (studio.id === 213 || studio.id === 49) ? 'tv' : 'movie';
+
                 return (
                   <HorizontalSection
                     key={studio.id}
@@ -508,10 +516,10 @@ export default function App() {
                     items={studioItems}
                     genresMap={genresMap}
                     loading={loading}
-                    onItemClick={(item) => handleOpenDetails(item, 'movie')}
+                    onItemClick={(item) => handleOpenDetails(item, itemType)}
                     onViewAll={() => {
                       setSelectedStudio(studio);
-                      setActiveTab('movies');
+                      setActiveTab(itemType === 'tv' ? 'tv' : 'movies');
                     }}
                     lang={lang}
                   />
