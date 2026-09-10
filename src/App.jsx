@@ -12,7 +12,6 @@ import {
   BACKDROP_BASE_URL
 } from './services/tmdb';
 
-// قائمة شركات الإنتاج العالمية الشهيرة والمعرفات الخاصة بها في TMDB
 const STUDIOS = [
   { id: 213, name: 'Netflix', logo: 'https://image.tmdb.org/t/p/w200/wwemzKW8219fCA3y023392.png' },
   { id: 2, name: 'Walt Disney', logo: 'https://image.tmdb.org/t/p/w200/wdrCwoL3Bx8pM32pP3C311.png' },
@@ -24,12 +23,11 @@ const STUDIOS = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('home'); // 'home' | 'movies' | 'tv' | 'mylist'
+  const [activeTab, setActiveTab] = useState('home');
   const [lang, setLang] = useState('ar-SA');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // إدارة القائمة الشخصية (قائمتي)
   const [myList, setMyList] = useState(() => {
     try {
       const saved = localStorage.getItem('movix_my_list');
@@ -39,38 +37,31 @@ export default function App() {
     }
   });
 
-  // بيانات الصفحة الرئيسية
   const [trendingList, setTrendingList] = useState([]);
   const [latestMoviesList, setLatestMoviesList] = useState([]);
   const [topRatedList, setTopRatedList] = useState([]);
   const [trendingTvList, setTrendingTvList] = useState([]);
 
-  // مؤشر البانر الرئيسي للتقليب التلقائي
   const [heroIndex, setHeroIndex] = useState(0);
 
-  // أفلام شركات الإنتاج (لكل شركة)
   const [studioMoviesMap, setStudioMoviesMap] = useState({});
 
-  // بيانات الشبكة والبحث
   const [gridItems, setGridItems] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // التصنيفات والفلترة حسب الشركة أو Genre
   const [genres, setGenres] = useState([]);
   const [selectedGenre, setSelectedGenre] = useState('');
   const [selectedStudio, setSelectedStudio] = useState(null);
   const [tempGenre, setTempGenre] = useState('');
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // التفاصيل ومشغل التريلر
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedItemType, setSelectedItemType] = useState('movie');
   const [details, setDetails] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [trailerKey, setTrailerKey] = useState(null);
 
-  // إعادة ضبط التصفح والفلترة
   const resetFilters = useCallback(() => {
     setSelectedGenre('');
     setSelectedStudio(null);
@@ -78,7 +69,6 @@ export default function App() {
     setPage(1);
   }, []);
 
-  // حفظ القائمة الشخصية تلقائياً
   useEffect(() => {
     try {
       localStorage.setItem('movix_my_list', JSON.stringify(myList));
@@ -87,7 +77,6 @@ export default function App() {
     }
   }, [myList]);
 
-  // جلب التصنيفات بناءً على النوع الحالي
   useEffect(() => {
     let isMounted = true;
     const getGenresList = async () => {
@@ -103,7 +92,6 @@ export default function App() {
     return () => { isMounted = false; };
   }, [activeTab, lang]);
 
-  // جلب محتوى الصفحة الرئيسية (الأقسام الرئيسية + أعمال شركات الإنتاج)
   useEffect(() => {
     if (activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio) {
       let isMounted = true;
@@ -124,7 +112,6 @@ export default function App() {
           setTopRatedList(topRated?.results || []);
           setTrendingTvList(tvTrending?.results || []);
 
-          // جلب محتوى الشركات بشكل صحيح ومستقل باستخدام fetchByStudio
           const studioResults = await Promise.allSettled(
             STUDIOS.map(async (s) => {
               const type = (s.id === 213 || s.id === 49) ? 'tv' : 'movie';
@@ -155,7 +142,6 @@ export default function App() {
     }
   }, [activeTab, searchQuery, selectedGenre, selectedStudio, lang]);
 
-  // تقليب البانر الرئيسي تلقائياً كل 5 ثوانٍ
   useEffect(() => {
     if (trendingList.length === 0) return;
     const interval = setInterval(() => {
@@ -164,7 +150,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [trendingList]);
 
-  // جلب المحتوى الشبكي (عند البحث، تصفح تصنيف، أو شركة)
   useEffect(() => {
     if (activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio) {
       let isMounted = true;
@@ -200,7 +185,6 @@ export default function App() {
     }
   }, [activeTab, page, searchQuery, selectedGenre, selectedStudio, lang]);
 
-  // جلب التفاصيل والتريلر
   useEffect(() => {
     if (!selectedItem) {
       setDetails(null);
@@ -227,7 +211,6 @@ export default function App() {
     return () => { isMounted = false; };
   }, [selectedItem, selectedItemType, lang]);
 
-  // تشغيل الإعلان التشويقي
   const handlePlayTrailer = useCallback(async (item, type = 'movie') => {
     if (!item) return;
     try {
@@ -245,7 +228,6 @@ export default function App() {
     }
   }, [lang]);
 
-  // إضافة / إزالة من قائمتي
   const toggleMyList = useCallback((item, type = 'movie') => {
     setMyList((prev) => {
       const exists = prev.some((i) => i.id === item.id);
@@ -343,43 +325,7 @@ export default function App() {
 
       <main className="px-4 pt-4 space-y-6">
 
-        {/* 3. شريط اختيار شركات الإنتاج السريع */}
-        {!searchQuery && (
-          <div className="space-y-2.5">
-            <h3 className="text-sm font-extrabold text-[#F8FAFC] border-r-4 border-[#3B82F6] pr-2">
-              {lang === 'ar-SA' ? 'تصفح حسب الشركة' : 'Browse by Studio'}
-            </h3>
-            <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
-              {STUDIOS.map((studio) => {
-                const isSelected = selectedStudio?.id === studio.id;
-                return (
-                  <button
-                    key={studio.id}
-                    onClick={() => {
-                      if (isSelected) {
-                        setSelectedStudio(null);
-                      } else {
-                        setSelectedStudio(studio);
-                        setSelectedGenre('');
-                        setSearchQuery('');
-                        setPage(1);
-                      }
-                    }}
-                    className={`flex-shrink-0 px-3.5 py-1.5 rounded-xl border flex items-center justify-center gap-1.5 transition active:scale-95 ${
-                      isSelected
-                        ? 'bg-[#3B82F6] border-[#3B82F6] text-white font-black shadow-lg shadow-[#3B82F6]/30'
-                        : 'bg-[#111827] border-[#1E293B] hover:border-gray-700 text-[#94A3B8]'
-                    }`}
-                  >
-                    <span className="text-xs font-bold">{studio.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* 4. البانر الرئيسي (Hero Section) المزود بالتبديل التلقائي */}
+        {/* 3. البانر الرئيسي (Hero Section) المزود بالتبديل التلقائي */}
         {activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && (
           loading ? (
             <div className="h-[340px] bg-[#111827] rounded-3xl animate-pulse" />
@@ -454,7 +400,7 @@ export default function App() {
           )
         )}
 
-        {/* 5. أقسام العرض الأفقي بالصفحة الرئيسية */}
+        {/* 4. أقسام العرض الأفقي بالصفحة الرئيسية */}
         {activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && (
           <div className="space-y-6">
             <HorizontalSection
@@ -529,7 +475,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 6. عرض قائمة "قائمتي" */}
+        {/* 5. عرض قائمة "قائمتي" */}
         {activeTab === 'mylist' && !searchQuery && (
           <div className="space-y-4 pt-2">
             <h3 className="text-base font-black text-white border-r-4 border-[#3B82F6] pr-2">
@@ -556,7 +502,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 7. العرض الشبكي (أفلام، مسلسلات، استوديو محدد، بحث، أو تصنيف) */}
+        {/* 6. العرض الشبكي (أفلام، مسلسلات، استوديو محدد، بحث، أو تصنيف) */}
         {(activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio) && activeTab !== 'mylist' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -631,7 +577,7 @@ export default function App() {
 
       </main>
 
-      {/* 8. الشريط السفلي Navigation Bar */}
+      {/* 7. الشريط السفلي Navigation Bar */}
       <div className="fixed bottom-0 inset-x-0 mx-auto max-w-md bg-[#05070A]/95 border-t border-[#1E293B] backdrop-blur-md z-40 py-2">
         <nav className="flex items-center justify-around px-2">
           <NavItem
@@ -689,7 +635,7 @@ export default function App() {
         </nav>
       </div>
 
-      {/* 9. نافذة اختيار التصنيفات (Filter Modal) */}
+      {/* 8. نافذة اختيار التصنيفات (Filter Modal) */}
       {showFilterModal && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-[#111827] border border-[#1E293B] rounded-3xl w-full max-w-xs p-5 space-y-4 shadow-2xl">
@@ -740,7 +686,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 10. نافذة التفاصيل الفردية (Details Modal) */}
+      {/* 9. نافذة التفاصيل الفردية (Details Modal) */}
       {selectedItem && (
         <div className="fixed inset-0 z-50 bg-[#05070A] overflow-y-auto min-h-screen text-[#F8FAFC]">
           <button
@@ -777,19 +723,19 @@ export default function App() {
                       {details?.release_date?.substring(0, 4) || details?.first_air_date?.substring(0, 4)}
                     </span>
                   </div>
-                  <h1 className="text-xl font-black text-white">
+                  <h1 className="text-2xl font-black text-white">
                     {details?.title || details?.name}
                   </h1>
                 </div>
               </div>
 
-              <div className="px-4 mt-4 space-y-5">
+              <div className="px-4 mt-4 space-y-6">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1.5">
                     {details?.genres?.map((g) => (
                       <span
                         key={g.id}
-                        className="bg-[#111827] text-[#94A3B8] px-2.5 py-0.5 rounded-lg text-[10px] font-semibold border border-[#1E293B]"
+                        className="bg-[#111827] text-[#CBD5E1] px-3 py-1 rounded-lg text-xs font-bold border border-[#1E293B]"
                       >
                         {g.name}
                       </span>
@@ -806,7 +752,7 @@ export default function App() {
 
                     <button
                       onClick={() => handlePlayTrailer(details, selectedItemType)}
-                      className="bg-[#3B82F6] text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1 active:scale-95 transition"
+                      className="bg-[#3B82F6] text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 active:scale-95 transition shadow-lg shadow-[#3B82F6]/30"
                     >
                       <span>▶</span>
                       <span>{lang === 'ar-SA' ? 'التريلر' : 'Trailer'}</span>
@@ -814,31 +760,34 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <h3 className={`text-xs font-bold text-white border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
+                <div className="space-y-2 bg-[#111827]/60 p-4 rounded-2xl border border-[#1E293B]">
+                  <h3 className={`text-sm font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
                     {lang === 'ar-SA' ? 'القصة' : 'Overview'}
                   </h3>
-                  <p className="text-[#94A3B8] text-xs leading-relaxed">
+                  <p className="text-[#F1F5F9] text-sm leading-relaxed font-normal">
                     {details?.overview || (lang === 'ar-SA' ? 'لا يوجد وصف متاح.' : 'No overview available.')}
                   </p>
                 </div>
 
                 {/* طاقم التمثيل */}
                 {details?.credits?.cast?.length > 0 && (
-                  <div className="space-y-2">
-                    <h3 className={`text-xs font-bold text-white border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
+                  <div className="space-y-3">
+                    <h3 className={`text-sm font-extrabold text-[#3B82F6] border-l-2 border-[#3B82F6] ${lang === 'ar-SA' ? 'border-r-2 border-l-0 pr-2' : 'pl-2'}`}>
                       {lang === 'ar-SA' ? 'طاقم التمثيل' : 'Cast'}
                     </h3>
-                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-                      {details.credits.cast.slice(0, 6).map((actor) => (
-                        <div key={actor.id} className="flex-shrink-0 w-20 bg-[#111827] rounded-xl p-2 text-center border border-[#1E293B]">
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+                      {details.credits.cast.slice(0, 10).map((actor) => (
+                        <div key={actor.id} className="flex-shrink-0 w-24 bg-[#111827] rounded-2xl p-2.5 text-center border border-[#1E293B] shadow-md">
                           <img
                             src={actor.profile_path ? `${IMAGE_BASE_URL}${actor.profile_path}` : 'https://via.placeholder.com/100?text=Actor'}
                             alt={actor.name}
-                            className="w-10 h-10 rounded-full object-cover mx-auto mb-1 border border-gray-700"
+                            className="w-14 h-14 rounded-full object-cover mx-auto mb-2 border-2 border-[#3B82F6]/40 shadow-sm"
                             loading="lazy"
                           />
-                          <p className="text-[9px] font-bold text-white truncate">{actor.name}</p>
+                          <p className="text-xs font-bold text-white truncate">{actor.name}</p>
+                          {actor.character && (
+                            <p className="text-[10px] text-[#94A3B8] truncate mt-0.5">{actor.character}</p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -850,7 +799,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 11. مشغل التريلر المباشر */}
+      {/* 10. مشغل التريلر المباشر */}
       {trailerKey && (
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-3 backdrop-blur-sm">
           <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-[#1E293B]">
