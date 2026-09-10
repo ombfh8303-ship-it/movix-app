@@ -69,24 +69,43 @@ export default function App() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [trailerKey, setTrailerKey] = useState(null);
 
+  // إعادة ضبط التصفح والفلترة
+  const resetFilters = useCallback(() => {
+    setSelectedGenre('');
+    setSelectedStudio(null);
+    setSearchQuery('');
+    setPage(1);
+  }, []);
+
   // حفظ القائمة الشخصية تلقائياً
   useEffect(() => {
-    localStorage.setItem('movix_my_list', JSON.stringify(myList));
+    try {
+      localStorage.setItem('movix_my_list', JSON.stringify(myList));
+    } catch (err) {
+      console.error('Error saving my list to localStorage:', err);
+    }
   }, [myList]);
 
   // جلب التصنيفات بناءً على النوع الحالي
   useEffect(() => {
+    let isMounted = true;
     const getGenresList = async () => {
       const type = activeTab === 'tv' ? 'tv' : 'movie';
-      const list = await fetchGenres(type, lang);
-      setGenres(list || []);
+      try {
+        const list = await fetchGenres(type, lang);
+        if (isMounted) setGenres(list || []);
+      } catch (err) {
+        console.error('Error fetching genres:', err);
+      }
     };
     getGenresList();
+    return () => { isMounted = false; };
   }, [activeTab, lang]);
 
   // جلب محتوى الصفحة الرئيسية (الأقسام الرئيسية + أعمال شركات الإنتاج)
   useEffect(() => {
     if (activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio) {
+      let isMounted = true;
       const loadHomeContent = async () => {
         setLoading(true);
         try {
@@ -97,32 +116,37 @@ export default function App() {
             fetchTrending('tv', 1, lang)
           ]);
 
+          if (!isMounted) return;
+
           setTrendingList(trending?.results || []);
           setLatestMoviesList(upcoming?.results || []);
           setTopRatedList(topRated?.results || []);
           setTrendingTvList(tvTrending?.results || []);
 
           // جلب أفلام الشركات بشكل متوازي
-          const studioPromises = STUDIOS.map((s) =>
-            fetchByGenre('movie', '', 1, lang, s.id).then((res) => ({
-              id: s.id,
-              items: res?.results || []
-            }))
+          const studioResults = await Promise.all(
+            STUDIOS.map(async (s) => {
+              const res = await fetchByGenre('movie', '', 1, lang, s.id);
+              return { id: s.id, items: res?.results || [] };
+            })
           );
-          const studioResults = await Promise.all(studioPromises);
-          const sMap = {};
-          studioResults.forEach((sr) => {
-            sMap[sr.id] = sr.items;
-          });
+
+          if (!isMounted) return;
+
+          const sMap = studioResults.reduce((acc, sr) => {
+            acc[sr.id] = sr.items;
+            return acc;
+          }, {});
           setStudioMoviesMap(sMap);
 
         } catch (err) {
           console.error('Error fetching home content:', err);
         } finally {
-          setLoading(false);
+          if (isMounted) setLoading(false);
         }
       };
       loadHomeContent();
+      return () => { isMounted = false; };
     }
   }, [activeTab, searchQuery, selectedGenre, selectedStudio, lang]);
 
@@ -138,6 +162,7 @@ export default function App() {
   // جلب المحتوى الشبكي (عند البحث، تصفح تصنيف، أو شركة)
   useEffect(() => {
     if (activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio) {
+      let isMounted = true;
       const loadGridContent = async () => {
         setLoading(true);
         const type = activeTab === 'tv' ? 'tv' : 'movie';
@@ -154,15 +179,18 @@ export default function App() {
             data = await fetchTrending(type, page, lang);
           }
 
-          setGridItems(data?.results || []);
-          setTotalPages(data?.total_pages || 1);
+          if (isMounted) {
+            setGridItems(data?.results || []);
+            setTotalPages(data?.total_pages || 1);
+          }
         } catch (err) {
           console.error('Error fetching grid items:', err);
         } finally {
-          setLoading(false);
+          if (isMounted) setLoading(false);
         }
       };
       loadGridContent();
+      return () => { isMounted = false; };
     }
   }, [activeTab, page, searchQuery, selectedGenre, selectedStudio, lang]);
 
@@ -172,10 +200,12 @@ export default function App() {
       setDetails(null);
       return;
     }
+    let isMounted = true;
     const getDetails = async () => {
       setDetailsLoading(true);
       try {
         const data = await fetchDetails(selectedItemType, selectedItem.id, lang);
+        if (!isMounted) return;
         setDetails(data);
         const trailer = data?.videos?.results?.find(
           (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
@@ -184,10 +214,11 @@ export default function App() {
       } catch (err) {
         console.error('Error fetching details:', err);
       } finally {
-        setDetailsLoading(false);
+        if (isMounted) setDetailsLoading(false);
       }
     };
     getDetails();
+    return () => { isMounted = false; };
   }, [selectedItem, selectedItemType, lang]);
 
   // تشغيل الإعلان التشويقي
@@ -234,11 +265,10 @@ export default function App() {
   }, [trendingList, heroIndex]);
 
   const genresMap = useMemo(() => {
-    const map = {};
-    genres.forEach((g) => {
-      map[g.id] = g.name;
-    });
-    return map;
+    return genres.reduce((acc, g) => {
+      acc[g.id] = g.name;
+      return acc;
+    }, {});
   }, [genres]);
 
   return (
@@ -250,9 +280,7 @@ export default function App() {
       <header className="pt-4 px-5 flex items-center justify-between">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => {
           setActiveTab('home');
-          setSelectedGenre('');
-          setSelectedStudio(null);
-          setSearchQuery('');
+          resetFilters();
         }}>
           <div className="w-8 h-8 rounded-lg bg-[#3B82F6] flex items-center justify-center text-white text-xs font-black shadow-md shadow-[#3B82F6]/30">
             ▶
@@ -573,7 +601,7 @@ export default function App() {
                   <button
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                    className="px-3 py-1.5 bg-[#111827] border border-[#1E293B] rounded-xl text-xs font-bold text-[#94A3B8] disabled:opacity-30 active:scale-95"
+                    className="px-3 py-1.5 bg-[#111827] border border-[#1E293B] rounded-xl text-xs font-bold text-[#94A3B8] disabled:opacity-30 active:scale-95 transition"
                   >
                     {lang === 'ar-SA' ? 'السابق' : 'Prev'}
                   </button>
@@ -583,7 +611,7 @@ export default function App() {
                   <button
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => p + 1)}
-                    className="px-3 py-1.5 bg-[#111827] border border-[#1E293B] rounded-xl text-xs font-bold text-[#94A3B8] disabled:opacity-30 active:scale-95"
+                    className="px-3 py-1.5 bg-[#111827] border border-[#1E293B] rounded-xl text-xs font-bold text-[#94A3B8] disabled:opacity-30 active:scale-95 transition"
                   >
                     {lang === 'ar-SA' ? 'التالي' : 'Next'}
                   </button>
@@ -595,7 +623,7 @@ export default function App() {
 
       </main>
 
-      {/* 8. الشريط السفلي Navigation Bar التابح للهاتف تماماً كما بالصورة */}
+      {/* 8. الشريط السفلي Navigation Bar */}
       <div className="fixed bottom-0 inset-x-0 mx-auto max-w-md bg-[#05070A]/95 border-t border-[#1E293B] backdrop-blur-md z-40 py-2">
         <nav className="flex items-center justify-around px-2">
           <NavItem
@@ -608,9 +636,7 @@ export default function App() {
             active={activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio}
             onClick={() => {
               setActiveTab('home');
-              setSelectedGenre('');
-              setSelectedStudio(null);
-              setSearchQuery('');
+              resetFilters();
             }}
           />
           <NavItem
@@ -623,10 +649,7 @@ export default function App() {
             active={activeTab === 'movies' && !searchQuery && !selectedGenre && !selectedStudio}
             onClick={() => {
               setActiveTab('movies');
-              setSelectedGenre('');
-              setSelectedStudio(null);
-              setSearchQuery('');
-              setPage(1);
+              resetFilters();
             }}
           />
           <NavItem
@@ -639,10 +662,7 @@ export default function App() {
             active={activeTab === 'tv' && !searchQuery && !selectedGenre && !selectedStudio}
             onClick={() => {
               setActiveTab('tv');
-              setSelectedGenre('');
-              setSelectedStudio(null);
-              setSearchQuery('');
-              setPage(1);
+              resetFilters();
             }}
           />
           <NavItem
@@ -655,9 +675,7 @@ export default function App() {
             active={activeTab === 'mylist'}
             onClick={() => {
               setActiveTab('mylist');
-              setSelectedGenre('');
-              setSelectedStudio(null);
-              setSearchQuery('');
+              resetFilters();
             }}
           />
         </nav>
