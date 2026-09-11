@@ -15,12 +15,28 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// قائمة سيرفرات المشاهدة المتاحة المحدثة والآمنة
+// قائمة سيرفرات المشاهدة المحدثة والآمنة
 const WATCH_SERVERS = [
-  { id: 'vidsrc', name: 'Server 1 (VidSrc)', getUrl: (id, type, s, e) => type === 'tv' ? `https://vidsrc.icu/embed/tv/${id}/${s}/${e}` : `https://vidsrc.icu/embed/movie/${id}` },
-  { id: 'vidsrcpro', name: 'Server 2 (VidSrc Pro)', getUrl: (id, type, s, e) => type === 'tv' ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` : `https://vidsrc.cc/v2/embed/movie/${id}` },
-  { id: 'superembed', name: 'Server 3 (SuperEmbed)', getUrl: (id, type, s, e) => type === 'tv' ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` : `https://multiembed.mov/?video_id=${id}&tmdb=1` },
-  { id: 'embed2', name: 'Server 4 (2Embed)', getUrl: (id, type, s, e) => type === 'tv' ? `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` : `https://www.2embed.cc/embed/${id}` }
+  { 
+    id: 'vidsrc', 
+    name: 'Server 1 (VidSrc.xyz)', 
+    getUrl: (id, type, s, e) => type === 'tv' ? `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}` : `https://vidsrc.xyz/embed/movie?tmdb=${id}` 
+  },
+  { 
+    id: 'vidsrc2', 
+    name: 'Server 2 (VidSrc.me)', 
+    getUrl: (id, type, s, e) => type === 'tv' ? `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` : `https://vidsrc.me/embed/movie?tmdb=${id}` 
+  },
+  { 
+    id: 'embedsu', 
+    name: 'Server 3 (Embed.su)', 
+    getUrl: (id, type, s, e) => type === 'tv' ? `https://embed.su/embed/tv/${id}/${s}/${e}` : `https://embed.su/embed/movie/${id}` 
+  },
+  { 
+    id: '2embed', 
+    name: 'Server 4 (2Embed)', 
+    getUrl: (id, type, s, e) => type === 'tv' ? `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` : `https://www.2embed.cc/embed/${id}` 
+  }
 ];
 
 export default function App() {
@@ -370,17 +386,16 @@ export default function App() {
 
         {detailsLoading ? <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-2 border-[#3B82F6] border-t-transparent" /></div> :
           <div className="pb-24">
-            {/* مشغل الفيديو مع الحماية الكاملة لمنع التوجيه والشاشة البيضاء */}
+            {/* مشغل الفيديو المعدل المفتوح وبدون قيود Sandbox */}
             {isWatching ? (
               <div className="relative w-full aspect-video bg-black">
                 <iframe
-                  key={currentEmbedUrl}
+                  key={`${activeServer.id}-${details?.id}-${selectedSeasonNumber}-${selectedEpisodeNumber}`}
                   src={currentEmbedUrl}
                   title="Watch Server"
                   className="w-full h-full border-0"
                   allow="autoplay; encrypted-media; picture-in-picture"
                   allowFullScreen
-                  sandbox="allow-scripts allow-same-origin allow-forms"
                   referrerPolicy="origin"
                 />
               </div>
@@ -418,150 +433,147 @@ export default function App() {
                 </div>
               </div>
 
+              {/* اختيار المواسم والحلقات عند اختيار مسلسل */}
+              {selectedItemType === 'tv' && details?.seasons?.length > 0 && (
+                <div className="space-y-4 pt-2">
+                  <SectionTitle title={lang === 'ar-SA' ? 'المواسم والحلقات' : 'Seasons & Episodes'} icon="📺" />
+                  <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
+                    {details.seasons.filter(s => s.season_number > 0).map(s => (
+                      <button
+                        key={s.id}
+                        onClick={() => setSelectedSeasonNumber(s.season_number)}
+                        className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-bold border transition-colors ${selectedSeasonNumber === s.season_number ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0B1220] border-[#1E293B] text-[#94A3B8]'}`}
+                      >
+                        {lang === 'ar-SA' ? `الموسم ${s.season_number}` : `Season ${s.season_number}`}
+                      </button>
+                    ))}
+                  </div>
+
+                  {seasonLoading ? (
+                    <div className="py-6 text-center text-xs text-[#64748B] animate-pulse">{lang === 'ar-SA' ? 'جاري تحميل الحلقات...' : 'Loading episodes...'}</div>
+                  ) : (
+                    <div className="grid grid-cols-4 gap-2">
+                      {seasonDetails?.episodes?.map(ep => (
+                        <button
+                          key={ep.id}
+                          onClick={() => handleStartWatching(ep.episode_number)}
+                          className={`py-3 rounded-xl text-xs font-bold border flex flex-col items-center gap-1 transition-colors ${selectedEpisodeNumber === ep.episode_number && isWatching ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0B1220] border-[#1E293B] text-[#CBD5E1]'}`}
+                        >
+                          <span>{lang === 'ar-SA' ? `حلقة ${ep.episode_number}` : `Ep ${ep.episode_number}`}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* قصة العمل */}
               <div className="space-y-3">
                 <SectionTitle title={lang === 'ar-SA' ? 'قصة العمل' : 'Story'} icon="✦" />
                 <div className="bg-[#0B1220] border border-[#1E293B] rounded-2xl p-4">
-                  <p className={`text-[#CBD5E1] text-[13px] leading-7 ${overviewExpanded ? '' : 'line-clamp-4'}`}>{details?.overview || (lang === 'ar-SA' ? 'لا يوجد وصف متاح لهذا العمل حالياً.' : 'No overview available.')}</p>
-                  {details?.overview?.length > 220 && <button onClick={() => setOverviewExpanded(p => !p)} className="mt-3 text-[10px] font-bold text-[#60A5FA]">{overviewExpanded ? (lang === 'ar-SA' ? 'عرض أقل' : 'Show Less') : (lang === 'ar-SA' ? 'عرض القصة كاملة' : 'Read Full Story')}</button>}
-                </div></div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <InfoBox label={lang === 'ar-SA' ? 'التقييم' : 'Rating'} value={details?.vote_average ? details.vote_average.toFixed(1) : '—'} />
-                <InfoBox label={lang === 'ar-SA' ? 'التصويتات' : 'Votes'} value={details?.vote_count ? details.vote_count.toLocaleString() : '—'} />
-                <InfoBox label={lang === 'ar-SA' ? 'النوع' : 'Type'} value={selectedItemType === 'tv' ? (lang === 'ar-SA' ? 'مسلسل' : 'Series') : (lang === 'ar-SA' ? 'فيلم' : 'Movie')} />
+                  <p className={`text-[#CBD5E1] text-[13px] leading-7 ${overviewExpanded ? '' : 'line-clamp-3'}`}>
+                    {details?.overview || (lang === 'ar-SA' ? 'لا توجد قصة متاحة لهذا العمل حالياً.' : 'No overview available.')}
+                  </p>
+                  {details?.overview && details.overview.length > 120 && (
+                    <button onClick={() => setOverviewExpanded(!overviewExpanded)} className="text-[#60A5FA] text-[11px] font-bold mt-2">
+                      {overviewExpanded ? (lang === 'ar-SA' ? 'عرض أقل' : 'Show Less') : (lang === 'ar-SA' ? 'عرض القصة كاملة' : 'Read More')}
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {selectedItemType === 'tv' && details?.seasons?.length > 0 && <div className="space-y-3">
-                <SectionTitle title={lang === 'ar-SA' ? 'المواسم والحلقات' : 'Seasons & Episodes'} icon="▣" />
-                <div className="flex gap-2 overflow-x-auto scrollbar-none">{details.seasons.filter(s => s.season_number > 0).map(s => <button key={s.id} onClick={() => setSelectedSeasonNumber(s.season_number)} className={`flex-shrink-0 px-4 py-2 rounded-full text-[10px] font-bold border ${selectedSeasonNumber === s.season_number ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#111827] border-[#1E293B] text-[#94A3B8]'}`}>{lang === 'ar-SA' ? `الموسم ${s.season_number}` : `Season ${s.season_number}`}</button>)}</div>
-                {seasonLoading ? <div className="text-center py-6 text-xs text-[#64748B]">{lang === 'ar-SA' ? 'جاري التحميل...' : 'Loading...'}</div> :
-                  <div className="space-y-2">{seasonDetails?.episodes?.map(ep => <div key={ep.id} className="flex gap-3 bg-[#111827] p-2 rounded-2xl border border-[#1E293B]">
-                    <img src={ep.still_path ? `${IMAGE_BASE_URL}${ep.still_path}` : 'https://via.placeholder.com/100x60?text=EP'} alt={ep.name} className="w-20 h-12 rounded-xl object-cover flex-shrink-0" loading="lazy" />
-                    <div className="min-w-0 flex-1 flex flex-col justify-center"><h4 className="text-[10px] font-bold text-white truncate">{ep.episode_number}. {ep.name}</h4>{ep.overview && <p className="text-[9px] text-[#64748B] mt-1 line-clamp-2">{ep.overview}</p>}</div>
-                    <button onClick={() => handleStartWatching(ep.episode_number)} className="w-8 h-8 rounded-full bg-[#0F172A] self-center flex items-center justify-center text-[#60A5FA] flex-shrink-0">▶</button>
-                  </div>)}</div>}
-              </div>}
-
-              {details?.credits?.cast?.length > 0 && <div className="space-y-3">
-                <SectionTitle title={lang === 'ar-SA' ? 'طاقم التمثيل' : 'Cast'} icon="●" />
-                <div className="flex gap-3 overflow-x-auto scrollbar-none">{details.credits.cast.slice(0, 10).map(actor => <div key={actor.id} className="flex-shrink-0 w-20 text-center">
-                  <div className="w-16 h-16 mx-auto rounded-full overflow-hidden border border-[#1E293B] bg-[#111827]"><img src={actor.profile_path ? `${IMAGE_BASE_URL}${actor.profile_path}` : 'https://via.placeholder.com/100?text=Actor'} alt={actor.name} className="w-full h-full object-cover" loading="lazy" /></div>
-                  <p className="text-[9px] font-bold text-white truncate mt-2">{actor.name}</p>
-                </div>)}</div>
-              </div>}
-
-              {details?.similar?.results?.length > 0 && <HorizontalDetailSection
-                title={lang === 'ar-SA' ? 'أفلام مشابهة' : 'Similar Movies'}
-                icon="🎬"
-                items={details.similar.results}
-                type={selectedItemType}
-                onItemClick={handleOpenDetails}
-                lang={lang}
-              />}
-
-              {details?.recommendations?.results?.length > 0 && <HorizontalDetailSection
-                title={lang === 'ar-SA' ? 'ننصحك بمشاهدتها' : 'Recommended for You'}
-                icon="🔥"
-                items={details.recommendations.results}
-                type={selectedItemType}
-                onItemClick={handleOpenDetails}
-                lang={lang}
-              />}
-
-            </div></div>}
+            </div>
+          </div>
+        }
       </div>}
 
-      {/* Trailer Modal */}
-      {trailerKey && <div className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-3">
-        <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-[#1E293B]">
-          <button onClick={() => setTrailerKey(null)} className="absolute top-2 right-2 bg-[#3B82F6] text-white w-8 h-8 rounded-full text-xs font-bold z-10">✕</button>
-          <iframe src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&rel=0&modestbranding=1`} title="Official Trailer" className="w-full h-full border-0" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
-        </div></div>}
+      {/* نافذة التريلر */}
+      {trailerKey && (
+        <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-2xl bg-black rounded-2xl overflow-hidden aspect-video border border-[#1E293B]">
+            <button onClick={() => setTrailerKey(null)} className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/70 text-white flex items-center justify-center">✕</button>
+            <iframe
+              src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
+              title="Trailer"
+              className="w-full h-full border-0"
+              allow="autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
 
-// Sub-components
-const NavItem = ({ icon, label, active, onClick }) => {
-  const getIcon = () => {
-    switch (icon) {
-      case 'home':
-        return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />;
-      case 'movie':
-        return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />;
-      case 'tv':
-        return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />;
-      case 'history':
-        return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />;
-      case 'heart':
-        return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />;
-      default:
-        return null;
-    }
-  };
-
+// المكونات الفرعية المساعدة
+function SectionTitle({ title, icon }) {
   return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 ${active ? 'text-[#3B82F6]' : 'text-[#64748B]'}`}>
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        {getIcon()}
-      </svg>
-      <span className="text-[9px] font-bold">{label}</span>
+    <div className="flex items-center gap-2">
+      <span className="text-[#3B82F6] text-xs">{icon}</span>
+      <h2 className="text-base font-black text-white">{title}</h2>
+    </div>
+  );
+}
+
+function NavItem({ icon, label, active, onClick }) {
+  const icons = {
+    home: '🏠',
+    movie: '🎬',
+    tv: '📺',
+    history: '◷',
+    heart: '♥'
+  };
+  return (
+    <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-colors ${active ? 'text-[#3B82F6]' : 'text-[#64748B]'}`}>
+      <span className="text-lg leading-none">{icons[icon]}</span>
+      <span className="text-[10px] font-bold">{label}</span>
     </button>
   );
-};
+}
 
-const SectionTitle = ({ title, icon }) => (
-  <div className="flex items-center gap-2">
-    <span className="text-sm">{icon}</span>
-    <h3 className="text-sm font-black text-white">{title}</h3>
-  </div>
-);
+function MovieCard({ item, onClick }) {
+  const title = item.title || item.name;
+  const rating = item.vote_average?.toFixed(1) || '7.0';
+  const year = item.release_date?.substring(0, 4) || item.first_air_date?.substring(0, 4);
 
-const InfoBox = ({ label, value }) => (
-  <div className="bg-[#0B1220] border border-[#1E293B] p-3 rounded-2xl text-center">
-    <p className="text-[9px] font-bold text-[#64748B] mb-1">{label}</p>
-    <p className="text-xs font-black text-white">{value}</p>
-  </div>
-);
-
-const MovieCard = ({ item, onClick }) => (
-  <div onClick={onClick} className="cursor-pointer space-y-1.5 group">
-    <div className="aspect-[2/3] rounded-2xl overflow-hidden bg-[#111827] border border-[#1E293B] relative">
-      <img src={item.poster_path ? `${IMAGE_BASE_URL}${item.poster_path}` : 'https://via.placeholder.com/300x450?text=No+Image'} alt={item.title || item.name} className="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-      <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md border border-white/10 px-1.5 py-0.5 rounded-lg text-[8px] font-black text-[#60A5FA]">
-        ★ {item.vote_average?.toFixed(1) || '0.0'}
+  return (
+    <div onClick={onClick} className="cursor-pointer group relative bg-[#0F172A] border border-[#1E293B] rounded-2xl overflow-hidden aspect-[2/3]">
+      {item.poster_path ? (
+        <img src={`${IMAGE_BASE_URL}${item.poster_path}`} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-[#64748B] text-[10px] text-center p-2">{title}</div>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90" />
+      <div className="absolute bottom-2 inset-x-2 space-y-1">
+        <h4 className="text-[11px] font-bold text-white truncate">{title}</h4>
+        <div className="flex items-center justify-between text-[9px] text-[#CBD5E1]">
+          <span className="text-[#60A5FA] font-bold">★ {rating}</span>
+          <span>{year}</span>
+        </div>
       </div>
     </div>
-    <h4 className="text-[10px] font-bold text-white truncate">{item.title || item.name}</h4>
-  </div>
-);
+  );
+}
 
-const HorizontalSection = ({ title, icon, items, loading, onItemClick, onViewAll, lang }) => (
-  <div className="space-y-3">
-    <div className="flex items-center justify-between">
-      <SectionTitle title={title} icon={icon} />
-      {onViewAll && <button onClick={onViewAll} className="text-[10px] font-bold text-[#60A5FA]">{lang === 'ar-SA' ? 'عرض الكل' : 'View All'}</button>}
-    </div>
-    <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
-      {loading ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="flex-shrink-0 w-28 aspect-[2/3] bg-[#111827] rounded-2xl animate-pulse" />)
-        : items.slice(0, 10).map(item => (
+function HorizontalSection({ title, icon, items, loading, onItemClick, onViewAll, lang }) {
+  if (!items?.length && !loading) return null;
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <SectionTitle title={title} icon={icon} />
+        {onViewAll && <button onClick={onViewAll} className="text-[10px] font-bold text-[#60A5FA]">{lang === 'ar-SA' ? 'عرض الكل' : 'View All'}</button>}
+      </div>
+      <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2">
+        {loading ? Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex-shrink-0 w-28 aspect-[2/3] bg-[#111827] rounded-2xl animate-pulse" />
+        )) : items.map(item => (
           <div key={item.id} className="flex-shrink-0 w-28">
             <MovieCard item={item} onClick={() => onItemClick(item)} />
           </div>
         ))}
+      </div>
     </div>
-  </div>
-);
-
-const HorizontalDetailSection = ({ title, icon, items, type, onItemClick, lang }) => (
-  <div className="space-y-3">
-    <SectionTitle title={title} icon={icon} />
-    <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
-      {items.slice(0, 10).map(item => (
-        <div key={item.id} className="flex-shrink-0 w-28">
-          <MovieCard item={item} onClick={() => onItemClick(item, type)} />
-        </div>
-      ))}
-    </div>
-  </div>
-);
+  );
+             }
