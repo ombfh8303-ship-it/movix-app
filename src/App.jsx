@@ -15,7 +15,7 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// قائمة السيرفرات المحدثة بالروابط السليمة
+// قائمة السيرفرات المحدثة والخالية من الحظر
 const WATCH_SERVERS = [
   { 
     id: 'vidsrc_me', 
@@ -25,32 +25,25 @@ const WATCH_SERVERS = [
       : `https://vidsrc.me/embed/movie?tmdb=${id}` 
   },
   { 
-    id: 'vidsrc_cc', 
-    name: 'VidSrc CC', 
+    id: 'vidsrc_pro', 
+    name: 'VidSrc Pro', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` 
-      : `https://vidsrc.cc/v2/embed/movie/${id}` 
+      ? `https://vidsrc.pro/embed/tv/${id}/${s}/${e}` 
+      : `https://vidsrc.pro/embed/movie/${id}` 
   },
   { 
-    id: 'vidsrc_xyz', 
-    name: 'VidSrc XYZ', 
+    id: 'vidsrc_in', 
+    name: 'VidSrc In', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
-      : `https://vidsrc.xyz/embed/movie?tmdb=${id}` 
+      ? `https://vidsrc.in/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
+      : `https://vidsrc.in/embed/movie?tmdb=${id}` 
   },
   { 
-    id: 'autoembed', 
-    name: 'AutoEmbed', 
+    id: 'superembed', 
+    name: 'SuperEmbed', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://player.autoembed.cc/tv/${id}/${s}/${e}` 
-      : `https://player.autoembed.cc/movie/${id}` 
-  },
-  { 
-    id: 'embed_su', 
-    name: 'Embed SU', 
-    getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://embed.su/embed/tv/${id}/${s}/${e}` 
-      : `https://embed.su/embed/movie/${id}` 
+      ? `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}` 
+      : `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` 
   },
   { 
     id: 'smashystream', 
