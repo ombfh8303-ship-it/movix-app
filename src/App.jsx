@@ -15,35 +15,70 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// سيرفرات مشغلات محدثة وفعالة ومستقرة
+// سيرفرات المشاهدة المحدثة والمطلوبة بالكامل
 const WATCH_SERVERS = [
   { 
-    id: 'vidsrc_cc', 
-    name: 'Server 1 (VidSrc.cc)', 
+    id: 'novastream', 
+    name: 'NovaStream', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` 
-      : `https://vidsrc.cc/v2/embed/movie/${id}` 
+      ? `https://nsbx.ru/embed/tv/${id}/${s}/${e}` 
+      : `https://nsbx.ru/embed/movie/${id}` 
   },
   { 
-    id: 'vidsrc_me', 
-    name: 'Server 2 (VidSrc.me)', 
+    id: 'huntstream', 
+    name: 'HuntStream', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
-      : `https://vidsrc.me/embed/movie?tmdb=${id}` 
+      ? `https://vidsrc.pro/embed/tv/${id}/${s}/${e}` 
+      : `https://vidsrc.pro/embed/movie/${id}` 
   },
   { 
-    id: 'embed_su', 
-    name: 'Server 3 (Embed.su)', 
+    id: 'fluxstream', 
+    name: 'FluxStream', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://embed.su/embed/tv/${id}/${s}/${e}` 
       : `https://embed.su/embed/movie/${id}` 
   },
   { 
-    id: '2embed', 
-    name: 'Server 4 (2Embed)', 
+    id: 'lumastream', 
+    name: 'LumaStream', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` 
+      : `https://vidsrc.cc/v2/embed/movie/${id}` 
+  },
+  { 
+    id: 'zetstream', 
+    name: 'Zetstream', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://vidsrc.in/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
+      : `https://vidsrc.in/embed/movie?tmdb=${id}` 
+  },
+  { 
+    id: 'netstream', 
+    name: 'NetStream', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}` 
+      : `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` 
+  },
+  { 
+    id: 'plexstream', 
+    name: 'PlexStream', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` 
       : `https://www.2embed.cc/embed/${id}` 
+  },
+  { 
+    id: 'vibestream', 
+    name: 'VibeStream', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://autoembed.co/tv/tmdb/${id}-${s}-${e}` 
+      : `https://autoembed.co/movie/tmdb/${id}` 
+  },
+  { 
+    id: 'nexostream', 
+    name: 'NexoStream', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://vidsrc.vip/embed/tv/${id}/${s}/${e}` 
+      : `https://vidsrc.vip/embed/movie/${id}` 
   }
 ];
 
@@ -594,4 +629,4 @@ function NavItem({ icon, label, active, onClick }) {
       <span className="text-[9px] font-bold">{label}</span>
     </button>
   );
-    }
+}
