@@ -15,49 +15,49 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// قائمة السيرفرات المحدثة والخالية من الحظر
+// قائمة السيرفرات المحدثة المطابقة للترجمة التلقائية وجودة العرض
 const WATCH_SERVERS = [
   { 
-    id: 'vidsrc_me', 
-    name: 'VidSrc Me', 
+    id: 'nova_stream', 
+    name: 'NovaStream (ترجمة + جودة)', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
-      : `https://vidsrc.me/embed/movie?tmdb=${id}` 
+      ? `https://player.smashy.stream/tv/${id}?s=${s}&e=${e}` 
+      : `https://player.smashy.stream/movie/${id}` 
   },
   { 
-    id: 'vidsrc_pro', 
-    name: 'VidSrc Pro', 
+    id: 'flux_stream', 
+    name: 'FluxStream (سريع جداً)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` 
+      : `https://vidsrc.cc/v2/embed/movie/${id}` 
+  },
+  { 
+    id: 'pulse_stream', 
+    name: 'PulseStream (جودة متعددة)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://embed.su/embed/tv/${id}/${s}/${e}` 
+      : `https://embed.su/embed/movie/${id}` 
+  },
+  { 
+    id: 'hunt_stream', 
+    name: 'HuntStream (تلقائي)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://autoembed.co/tv/tmdb/${id}-${s}-${e}` 
+      : `https://autoembed.co/movie/tmdb/${id}` 
+  },
+  { 
+    id: 'luma_stream', 
+    name: 'LumaStream (VIP)', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://vidsrc.pro/embed/tv/${id}/${s}/${e}` 
       : `https://vidsrc.pro/embed/movie/${id}` 
   },
   { 
-    id: 'vidsrc_in', 
-    name: 'VidSrc In', 
-    getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidsrc.in/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
-      : `https://vidsrc.in/embed/movie?tmdb=${id}` 
-  },
-  { 
-    id: 'superembed', 
-    name: 'SuperEmbed', 
+    id: 'zet_stream', 
+    name: 'ZetStream (4K/HD)', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}` 
       : `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` 
-  },
-  { 
-    id: 'smashystream', 
-    name: 'SmashyStream', 
-    getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${s}&episode=${e}` 
-      : `https://embed.smashystream.com/playere.php?tmdb=${id}` 
-  },
-  { 
-    id: '2embed', 
-    name: '2Embed', 
-    getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` 
-      : `https://www.2embed.cc/embed/${id}` 
   }
 ];
 
@@ -110,6 +110,7 @@ export default function App() {
   const [activeServer, setActiveServer] = useState(WATCH_SERVERS[0]);
   const [selectedEpisodeNumber, setSelectedEpisodeNumber] = useState(1);
   const [isWatching, setIsWatching] = useState(false);
+  const [showServerModal, setShowServerModal] = useState(false); // حالة النافذة المنبثقة للسيرفرات
 
   const searchTimer = useRef(null);
 
@@ -493,21 +494,56 @@ export default function App() {
                 <button onClick={() => toggleMyList(details, selectedItemType)} className="h-12 w-12 bg-[#111827] border border-[#1E293B] rounded-2xl text-white text-lg flex items-center justify-center active:scale-95 transition-all">{isInMyList(details?.id) ? '✓' : '＋'}</button>
               </div>
 
-              {/* اختيار سيرفر المشاهدة */}
+              {/* اختيار سيرفر المشاهدة عبر زر منبثق (Modal Pop-up) */}
               <div className="space-y-3">
-                <SectionTitle title={lang === 'ar-SA' ? 'سيرفرات المشاهدة' : 'Server Sources'} icon="🌐" />
-                <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
-                  {WATCH_SERVERS.map(srv => (
-                    <button
-                      key={srv.id}
-                      onClick={() => { setActiveServer(srv); setIsWatching(true); }}
-                      className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-bold border transition-all ${activeServer.id === srv.id ? 'bg-[#3B82F6] border-[#3B82F6] text-white shadow-md shadow-[#3B82F6]/30' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
-                    >
-                      {srv.name}
-                    </button>
-                  ))}
-                </div>
+                <button 
+                  onClick={() => setShowServerModal(true)} 
+                  className="w-full h-12 bg-[#0F172A] border border-[#1E293B] text-white rounded-2xl font-bold text-xs flex items-center justify-between px-4 active:scale-95 transition-all"
+                >
+                  <div className="flex items-center gap-2">
+                    <span>🌐</span>
+                    <span>{lang === 'ar-SA' ? 'السيرفر الحالي:' : 'Current Server:'} <strong className="text-[#3B82F6]">{activeServer.name}</strong></span>
+                  </div>
+                  <span className="text-xs bg-[#3B82F6]/20 text-[#60A5FA] px-2.5 py-1 rounded-lg">⚙ {lang === 'ar-SA' ? 'تغيير السيرفر' : 'Change Server'}</span>
+                </button>
               </div>
+
+              {/* نافذة اختيار السيرفرات المنبثقة المطابقة للصور */}
+              {showServerModal && (
+                <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                  <div className="bg-white text-slate-900 rounded-[24px] w-full max-w-sm p-5 space-y-4 shadow-2xl animate-fade-in">
+                    <div className="flex justify-between items-start">
+                      <p className="text-xs font-bold text-slate-600 leading-relaxed">
+                        {lang === 'ar-SA' 
+                          ? 'إذا لم يعمل السيرفر الحالي، يُرجى تجربة سيرفر آخر من القائمة أدناه.'
+                          : 'If the selected server isn\'t working, try another one below.'}
+                      </p>
+                      <button onClick={() => setShowServerModal(false)} className="text-slate-400 text-lg ml-2 font-bold">✕</button>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {WATCH_SERVERS.map(srv => (
+                        <button
+                          key={srv.id}
+                          onClick={() => {
+                            setActiveServer(srv);
+                            setIsWatching(true);
+                            setShowServerModal(false);
+                          }}
+                          className={`w-full py-3.5 px-5 rounded-2xl text-xs font-bold flex items-center justify-between border transition-all ${
+                            activeServer.id === srv.id
+                              ? 'bg-[#FFD8B3] border-[#FFB266] text-[#6B3A00] shadow-sm'
+                              : 'bg-[#F1F5F9] border-transparent text-slate-800 hover:bg-[#E2E8F0]'
+                          }`}
+                        >
+                          <span>{srv.name}</span>
+                          <span className="text-slate-400 text-sm">🔒</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* مواسم وحلقات المسلسلات */}
               {selectedItemType === 'tv' && details?.seasons?.length > 0 && (
