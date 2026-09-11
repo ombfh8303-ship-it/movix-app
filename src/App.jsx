@@ -471,7 +471,6 @@ export default function App() {
                   title="Watch Server"
                   className="w-full h-full border-0"
                   allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                  sandbox="allow-forms allow-pointer-lock allow-same-origin allow-scripts allow-top-navigation"
                   allowFullScreen
                   referrerPolicy="no-referrer-when-downgrade"
                 />
