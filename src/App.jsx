@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   fetchTrending,
   fetchTopRated,
@@ -26,14 +26,17 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [lang, setLang] = useState('ar-SA');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
+  // Safe LocalStorage read
   const [myList, setMyList] = useState(() => {
     try {
       const saved = localStorage.getItem('movix_my_list');
       return saved ? JSON.parse(saved) : [];
-    } catch {
+    } catch (err) {
+      console.warn('LocalStorage restricted:', err);
       return [];
     }
   });
@@ -73,16 +76,26 @@ export default function App() {
   const [seasonDetails, setSeasonDetails] = useState(null);
   const [seasonLoading, setSeasonLoading] = useState(false);
 
+  // Debounce Search Query
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
   const resetFilters = useCallback(() => {
     setSelectedGenre('');
     setSelectedStudio(null);
     setSearchQuery('');
+    setDebouncedSearch('');
     setMinRating(0);
     setSelectedYear('');
     setPage(1);
     setGridItems([]);
   }, []);
 
+  // Safe LocalStorage write
   useEffect(() => {
     try {
       localStorage.setItem('movix_my_list', JSON.stringify(myList));
@@ -91,21 +104,16 @@ export default function App() {
     }
   }, [myList]);
 
+  // Fetch Genres
   useEffect(() => {
     let isMounted = true;
+    const type = activeTab === 'tv' ? 'tv' : 'movie';
 
-    const getGenresList = async () => {
-      const type = activeTab === 'tv' ? 'tv' : 'movie';
-
-      try {
-        const list = await fetchGenres(type, lang);
+    fetchGenres(type, lang)
+      .then((list) => {
         if (isMounted) setGenres(list || []);
-      } catch (err) {
-        console.error('Error fetching genres:', err);
-      }
-    };
-
-    getGenresList();
+      })
+      .catch((err) => console.error('Error fetching genres:', err));
 
     return () => {
       isMounted = false;
@@ -115,28 +123,21 @@ export default function App() {
   /* =========================
      HOME DATA
   ========================= */
-
   useEffect(() => {
     if (
       activeTab === 'home' &&
-      !searchQuery &&
+      !debouncedSearch &&
       !selectedGenre &&
       !selectedStudio &&
       !minRating &&
       !selectedYear
     ) {
       let isMounted = true;
+      setLoading(true);
 
       const loadHomeContent = async () => {
-        setLoading(true);
-
         try {
-          const [
-            trending,
-            upcoming,
-            topRated,
-            tvTrending
-          ] = await Promise.all([
+          const [trending, upcoming, topRated, tvTrending] = await Promise.all([
             fetchTrending('movie', 1, lang),
             fetchUpcomingOrPopular('movie', 1, lang),
             fetchTopRated('movie', 1, lang),
@@ -152,29 +153,15 @@ export default function App() {
 
           const studioResults = await Promise.allSettled(
             STUDIOS.map(async (s) => {
-              const type =
-                s.id === 213 || s.id === 49
-                  ? 'tv'
-                  : 'movie';
-
-              const res = await fetchByStudio(
-                type,
-                s.id,
-                1,
-                lang
-              );
-
-              return {
-                id: s.id,
-                items: res?.results || []
-              };
+              const type = s.id === 213 || s.id === 49 ? 'tv' : 'movie';
+              const res = await fetchByStudio(type, s.id, 1, lang);
+              return { id: s.id, items: res?.results || [] };
             })
           );
 
           if (!isMounted) return;
 
           const sMap = {};
-
           studioResults.forEach((sr) => {
             if (sr.status === 'fulfilled') {
               sMap[sr.value.id] = sr.value.items;
@@ -195,29 +182,16 @@ export default function App() {
         isMounted = false;
       };
     }
-  }, [
-    activeTab,
-    searchQuery,
-    selectedGenre,
-    selectedStudio,
-    minRating,
-    selectedYear,
-    lang
-  ]);
+  }, [activeTab, debouncedSearch, selectedGenre, selectedStudio, minRating, selectedYear, lang]);
 
   /* =========================
      HERO SLIDER
   ========================= */
-
   useEffect(() => {
     if (trendingList.length === 0) return;
 
     const interval = setInterval(() => {
-      setHeroIndex(
-        (prevIndex) =>
-          (prevIndex + 1) %
-          Math.min(trendingList.length, 5)
-      );
+      setHeroIndex((prevIndex) => (prevIndex + 1) % Math.min(trendingList.length, 5));
     }, 6000);
 
     return () => clearInterval(interval);
@@ -226,110 +200,55 @@ export default function App() {
   /* =========================
      GRID DATA
   ========================= */
-
   const loadGridData = useCallback(
     async (pageNum = 1, append = false) => {
       if (pageNum === 1) setLoading(true);
       else setLoadingMore(true);
 
-      const type =
-        activeTab === 'tv'
-          ? 'tv'
-          : 'movie';
-
+      const type = activeTab === 'tv' ? 'tv' : 'movie';
       let data;
 
       try {
-        if (searchQuery.trim()) {
-          data = await searchMedia(
-            searchQuery,
-            type,
-            pageNum,
-            lang
-          );
+        if (debouncedSearch.trim()) {
+          data = await searchMedia(debouncedSearch, type, pageNum, lang);
         } else if (selectedGenre) {
-          data = await fetchByGenre(
-            type,
-            selectedGenre,
-            pageNum,
-            lang
-          );
+          data = await fetchByGenre(type, selectedGenre, pageNum, lang);
         } else if (selectedStudio) {
-          const studioType =
-            selectedStudio.id === 213 ||
-            selectedStudio.id === 49
-              ? 'tv'
-              : type;
-
-          data = await fetchByStudio(
-            studioType,
-            selectedStudio.id,
-            pageNum,
-            lang
-          );
+          const studioType = selectedStudio.id === 213 || selectedStudio.id === 49 ? 'tv' : type;
+          data = await fetchByStudio(studioType, selectedStudio.id, pageNum, lang);
         } else {
-          data = await fetchTrending(
-            type,
-            pageNum,
-            lang
-          );
+          data = await fetchTrending(type, pageNum, lang);
         }
 
         let results = data?.results || [];
 
         if (minRating > 0) {
-          results = results.filter(
-            (item) =>
-              (item.vote_average || 0) >=
-              minRating
-          );
+          results = results.filter((item) => (item.vote_average || 0) >= minRating);
         }
 
         if (selectedYear) {
           results = results.filter((item) => {
-            const date =
-              item.release_date ||
-              item.first_air_date ||
-              '';
-
+            const date = item.release_date || item.first_air_date || '';
             return date.startsWith(selectedYear);
           });
         }
 
-        setGridItems((prev) =>
-          append
-            ? [...prev, ...results]
-            : results
-        );
-
-        setTotalPages(
-          data?.total_pages || 1
-        );
+        setGridItems((prev) => (append ? [...prev, ...results] : results));
+        setTotalPages(data?.total_pages || 1);
       } catch (err) {
-        console.error(
-          'Error fetching grid items:',
-          err
-        );
+        console.error('Error fetching grid items:', err);
       } finally {
         setLoading(false);
         setLoadingMore(false);
       }
     },
-    [
-      activeTab,
-      searchQuery,
-      selectedGenre,
-      selectedStudio,
-      minRating,
-      selectedYear,
-      lang
-    ]
+    [activeTab, debouncedSearch, selectedGenre, selectedStudio, minRating, selectedYear, lang]
   );
 
   useEffect(() => {
     if (
       activeTab !== 'home' ||
-      searchQuery ||
+      debouncedSearch ||
       selectedGenre ||
       selectedStudio ||
       minRating ||
@@ -338,22 +257,10 @@ export default function App() {
       setPage(1);
       loadGridData(1, false);
     }
-  }, [
-    activeTab,
-    searchQuery,
-    selectedGenre,
-    selectedStudio,
-    minRating,
-    selectedYear,
-    lang,
-    loadGridData
-  ]);
+  }, [activeTab, debouncedSearch, selectedGenre, selectedStudio, minRating, selectedYear, lang, loadGridData]);
 
   const handleLoadMore = () => {
-    if (
-      page < totalPages &&
-      !loadingMore
-    ) {
+    if (page < totalPages && !loadingMore) {
       const nextPage = page + 1;
       setPage(nextPage);
       loadGridData(nextPage, true);
@@ -363,7 +270,6 @@ export default function App() {
   /* =========================
      DETAILS
   ========================= */
-
   useEffect(() => {
     if (!selectedItem) {
       setDetails(null);
@@ -371,259 +277,126 @@ export default function App() {
     }
 
     let isMounted = true;
+    setDetailsLoading(true);
 
-    const getDetails = async () => {
-      setDetailsLoading(true);
-
-      try {
-        const data = await fetchDetails(
-          selectedItemType,
-          selectedItem.id,
-          lang
-        );
-
+    fetchDetails(selectedItemType, selectedItem.id, lang)
+      .then((data) => {
         if (!isMounted) return;
 
         setDetails(data);
-
-        const trailer =
-          data?.videos?.results?.find(
-            (vid) =>
-              vid.site === 'YouTube' &&
-              (
-                vid.type === 'Trailer' ||
-                vid.type === 'Teaser'
-              )
-          );
-
-        setTrailerKey(
-          trailer ? trailer.key : null
+        const trailer = data?.videos?.results?.find(
+          (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
         );
+        setTrailerKey(trailer ? trailer.key : null);
 
-        if (
-          selectedItemType === 'tv' &&
-          data?.seasons?.length > 0
-        ) {
-          const firstSeason =
-            data.seasons.find(
-              (s) => s.season_number > 0
-            ) || data.seasons[0];
-
-          setSelectedSeasonNumber(
-            firstSeason.season_number
-          );
+        if (selectedItemType === 'tv' && data?.seasons?.length > 0) {
+          const firstSeason = data.seasons.find((s) => s.season_number > 0) || data.seasons[0];
+          setSelectedSeasonNumber(firstSeason.season_number);
         }
-      } catch (err) {
-        console.error(
-          'Error fetching details:',
-          err
-        );
-      } finally {
-        if (isMounted) {
-          setDetailsLoading(false);
-        }
-      }
-    };
-
-    getDetails();
+      })
+      .catch((err) => console.error('Error fetching details:', err))
+      .finally(() => {
+        if (isMounted) setDetailsLoading(false);
+      });
 
     return () => {
       isMounted = false;
     };
-  }, [
-    selectedItem,
-    selectedItemType,
-    lang
-  ]);
+  }, [selectedItem, selectedItemType, lang]);
 
   /* =========================
      SEASON DETAILS
   ========================= */
-
   useEffect(() => {
-    if (
-      selectedItemType !== 'tv' ||
-      !selectedItem?.id ||
-      selectedSeasonNumber === null
-    ) {
+    if (selectedItemType !== 'tv' || !selectedItem?.id || selectedSeasonNumber === null) {
       setSeasonDetails(null);
       return;
     }
 
     let isMounted = true;
+    const controller = new AbortController();
+    setSeasonLoading(true);
 
-    const getSeasonDetails = async () => {
-      setSeasonLoading(true);
-
-      try {
-        const res = await fetch(
-          `https://api.themoviedb.org/3/tv/${selectedItem.id}/season/${selectedSeasonNumber}?api_key=4289874cb3f960f477028fae98f0efd0&language=${lang}`
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-
-          if (isMounted) {
-            setSeasonDetails(data);
-          }
-        } else {
-          if (isMounted) {
-            setSeasonDetails({
-              episodes: []
-            });
-          }
+    fetch(
+      `https://api.themoviedb.org/3/tv/${selectedItem.id}/season/${selectedSeasonNumber}?api_key=4289874cb3f960f477028fae98f0efd0&language=${lang}`,
+      { signal: controller.signal }
+    )
+      .then((res) => (res.ok ? res.json() : { episodes: [] }))
+      .then((data) => {
+        if (isMounted) setSeasonDetails(data);
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError' && isMounted) {
+          console.error('Error fetching season details:', err);
+          setSeasonDetails({ episodes: [] });
         }
-      } catch (err) {
-        console.error(
-          'Error fetching season details:',
-          err
-        );
-
-        if (isMounted) {
-          setSeasonDetails({
-            episodes: []
-          });
-        }
-      } finally {
-        if (isMounted) {
-          setSeasonLoading(false);
-        }
-      }
-    };
-
-    getSeasonDetails();
+      })
+      .finally(() => {
+        if (isMounted) setSeasonLoading(false);
+      });
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
-  }, [
-    selectedItem,
-    selectedItemType,
-    selectedSeasonNumber,
-    lang
-  ]);
+  }, [selectedItem, selectedItemType, selectedSeasonNumber, lang]);
 
   /* =========================
-     TRAILER
+     TRAILER & LIST ACTIONS
   ========================= */
-
   const handlePlayTrailer = useCallback(
     async (item, type = 'movie') => {
       if (!item) return;
 
       try {
-        const data = await fetchDetails(
-          type,
-          item.id,
-          lang
+        const data = await fetchDetails(type, item.id, lang);
+        const trailer = data?.videos?.results?.find(
+          (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
         );
-
-        const trailer =
-          data?.videos?.results?.find(
-            (vid) =>
-              vid.site === 'YouTube' &&
-              (
-                vid.type === 'Trailer' ||
-                vid.type === 'Teaser'
-              )
-          );
 
         if (trailer) {
           setTrailerKey(trailer.key);
         } else {
-          alert(
-            lang === 'ar-SA'
-              ? 'عذراً، الإعلان التشويقي غير متوفر'
-              : 'Trailer not available'
-          );
+          alert(lang === 'ar-SA' ? 'عذراً، الإعلان التشويقي غير متوفر' : 'Trailer not available');
         }
       } catch {
-        alert(
-          lang === 'ar-SA'
-            ? 'خطأ في جلب التريلر'
-            : 'Error loading trailer'
-        );
+        alert(lang === 'ar-SA' ? 'خطأ في جلب التريلر' : 'Error loading trailer');
       }
     },
     [lang]
   );
 
-  /* =========================
-     MY LIST
-  ========================= */
+  const toggleMyList = useCallback((item, type = 'movie') => {
+    setMyList((prev) => {
+      const exists = prev.some((i) => i.id === item.id);
+      if (exists) return prev.filter((i) => i.id !== item.id);
+      return [...prev, { ...item, media_type: type }];
+    });
+  }, []);
 
-  const toggleMyList = useCallback(
-    (item, type = 'movie') => {
-      setMyList((prev) => {
-        const exists = prev.some(
-          (i) => i.id === item.id
-        );
+  const isInMyList = useCallback((itemId) => myList.some((i) => i.id === itemId), [myList]);
 
-        if (exists) {
-          return prev.filter(
-            (i) => i.id !== item.id
-          );
-        }
-
-        return [
-          ...prev,
-          {
-            ...item,
-            media_type: type
-          }
-        ];
-      });
-    },
-    []
-  );
-
-  const isInMyList = useCallback(
-    (itemId) =>
-      myList.some(
-        (i) => i.id === itemId
-      ),
-    [myList]
-  );
-
-  const handleOpenDetails = useCallback(
-    (item, type = 'movie') => {
-      setActiveDetailTab('similar');
-      setTrailerKey(null);
-      setSelectedItemType(
-        item.media_type || type
-      );
-      setSelectedItem(item);
-    },
-    []
-  );
+  const handleOpenDetails = useCallback((item, type = 'movie') => {
+    setActiveDetailTab('similar');
+    setTrailerKey(null);
+    setSelectedItemType(item.media_type || type);
+    setSelectedItem(item);
+  }, []);
 
   const featuredItem = useMemo(() => {
-    if (trendingList.length > 0) {
-      return (
-        trendingList[heroIndex] ||
-        trendingList[0]
-      );
-    }
-
-    return null;
-  }, [
-    trendingList,
-    heroIndex
-  ]);
+    return trendingList.length > 0 ? trendingList[heroIndex] || trendingList[0] : null;
+  }, [trendingList, heroIndex]);
 
   const genresMap = useMemo(() => {
-    return genres.reduce(
-      (acc, g) => {
-        acc[g.id] = g.name;
-        return acc;
-      },
-      {}
-    );
+    return genres.reduce((acc, g) => {
+      acc[g.id] = g.name;
+      return acc;
+    }, {});
   }, [genres]);
 
   const isHome =
     activeTab === 'home' &&
-    !searchQuery &&
+    !debouncedSearch &&
     !selectedGenre &&
     !selectedStudio &&
     !minRating &&
@@ -631,79 +404,26 @@ export default function App() {
 
   return (
     <div
-      className="
-        min-h-screen
-        bg-[#05070A]
-        text-[#F8FAFC]
-        antialiased
-        pb-24
-        font-sans
-        max-w-md
-        mx-auto
-        relative
-        overflow-hidden
-      "
-      dir={
-        lang === 'ar-SA'
-          ? 'rtl'
-          : 'ltr'
-      }
+      className="min-h-screen bg-[#05070A] text-[#F8FAFC] antialiased pb-24 font-sans max-w-md mx-auto relative overflow-hidden select-none"
+      dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}
     >
-      {/* =========================
-          HEADER
-      ========================= */}
-
-      <header className="
-        px-4
-        pt-5
-        pb-2
-        flex
-        items-center
-        justify-between
-      ">
+      {/* HEADER */}
+      <header className="px-4 pt-5 pb-2 flex items-center justify-between">
         <div
-          className="flex items-center gap-2 cursor-pointer"
+          className="flex items-center gap-2 cursor-pointer touch-manipulation"
           onClick={() => {
             setActiveTab('home');
             resetFilters();
           }}
         >
-          <div className="
-            w-9
-            h-9
-            rounded-xl
-            bg-[#3B82F6]
-            flex
-            items-center
-            justify-center
-            text-white
-            text-sm
-            font-black
-            shadow-lg
-            shadow-[#3B82F6]/25
-          ">
+          <div className="w-9 h-9 rounded-xl bg-[#3B82F6] flex items-center justify-center text-white text-sm font-black shadow-lg shadow-[#3B82F6]/25">
             ▶
           </div>
-
           <div className="leading-none">
-            <span className="
-              text-[19px]
-              font-black
-              tracking-[0.08em]
-              text-white
-            ">
-              MOV<span className="text-[#3B82F6]">
-                IX
-              </span>
+            <span className="text-[19px] font-black tracking-[0.08em] text-white">
+              MOV<span className="text-[#3B82F6]">IX</span>
             </span>
-
-            <p className="
-              text-[7px]
-              text-[#64748B]
-              tracking-[0.22em]
-              mt-1
-              uppercase
-            ">
+            <p className="text-[7px] text-[#64748B] tracking-[0.22em] mt-1 uppercase">
               Movie Streaming
             </p>
           </div>
@@ -711,36 +431,11 @@ export default function App() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() =>
-              setLang((p) =>
-                p === 'ar-SA'
-                  ? 'en-US'
-                  : 'ar-SA'
-              )
-            }
-            className="
-              h-9
-              px-3
-              rounded-full
-              bg-[#0F172A]
-              border
-              border-[#1E293B]
-              text-[#CBD5E1]
-              text-[10px]
-              font-bold
-              flex
-              items-center
-              gap-1.5
-              active:scale-95
-              transition
-            "
+            onClick={() => setLang((p) => (p === 'ar-SA' ? 'en-US' : 'ar-SA'))}
+            className="h-9 px-3 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#CBD5E1] text-[10px] font-bold flex items-center gap-1.5 active:scale-95 transition touch-manipulation"
           >
             <span>🌐</span>
-            <span>
-              {lang === 'ar-SA'
-                ? 'EN'
-                : 'العربية'}
-            </span>
+            <span>{lang === 'ar-SA' ? 'EN' : 'العربية'}</span>
           </button>
 
           <button
@@ -750,53 +445,23 @@ export default function App() {
               setTempSelectedYear(selectedYear);
               setShowFilterModal(true);
             }}
-            className="
-              w-9
-              h-9
-              rounded-full
-              bg-[#0F172A]
-              border
-              border-[#1E293B]
-              text-[#CBD5E1]
-              flex
-              items-center
-              justify-center
-              text-sm
-              active:scale-95
-              transition
-            "
+            className="w-9 h-9 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#CBD5E1] flex items-center justify-center text-sm active:scale-95 transition touch-manipulation"
           >
             ⚙
           </button>
         </div>
       </header>
 
-      {/* =========================
-          SEARCH
-      ========================= */}
-
+      {/* SEARCH */}
       <div className="px-4 pt-3">
         <div className="relative group">
-          <div className="
-            absolute
-            inset-y-0
-            left-0
-            w-10
-            flex
-            items-center
-            justify-center
-            pointer-events-none
-            text-[#64748B]
-          ">
+          <div className="absolute inset-y-0 left-0 w-10 flex items-center justify-center pointer-events-none text-[#64748B]">
             🔍
           </div>
-
           <input
             type="text"
             placeholder={
-              lang === 'ar-SA'
-                ? 'ابحث عن فيلم، مسلسل، ممثل...'
-                : 'Search movies, series, actors...'
+              lang === 'ar-SA' ? 'ابحث عن فيلم، مسلسل، ممثل...' : 'Search movies, series, actors...'
             }
             value={searchQuery}
             onChange={(e) => {
@@ -804,46 +469,15 @@ export default function App() {
               setSelectedGenre('');
               setSelectedStudio(null);
             }}
-            className="
-              w-full
-              h-12
-              bg-[#0F172A]
-              text-white
-              placeholder-[#64748B]
-              border
-              border-[#1E293B]
-              focus:border-[#3B82F6]
-              focus:shadow-lg
-              focus:shadow-[#3B82F6]/10
-              px-4
-              rounded-2xl
-              text-xs
-              focus:outline-none
-              transition
-              pr-4
-              pl-10
-            "
+            className="w-full h-12 bg-[#0F172A] text-white placeholder-[#64748B] border border-[#1E293B] focus:border-[#3B82F6] focus:shadow-lg focus:shadow-[#3B82F6]/10 px-4 rounded-2xl text-xs focus:outline-none transition pr-4 pl-10"
           />
         </div>
       </div>
 
-      <main className="
-        px-4
-        pt-5
-        space-y-8
-      ">
-        {/* =========================
-            GENRE CHIPS
-        ========================= */}
-
+      <main className="px-4 pt-5 space-y-8">
+        {/* GENRE CHIPS */}
         {isHome && genres.length > 0 && (
-          <div className="
-            flex
-            gap-2
-            overflow-x-auto
-            scrollbar-none
-            pb-1
-          ">
+          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1 will-change-transform">
             {genres.slice(0, 8).map((genre) => (
               <button
                 key={genre.id}
@@ -851,22 +485,7 @@ export default function App() {
                   setSelectedGenre(genre.id);
                   setActiveTab('movies');
                 }}
-                className="
-                  flex-shrink-0
-                  px-4
-                  py-2
-                  rounded-full
-                  bg-[#0F172A]
-                  border
-                  border-[#1E293B]
-                  text-[#94A3B8]
-                  text-[10px]
-                  font-bold
-                  active:scale-95
-                  transition
-                  hover:border-[#3B82F6]/50
-                  hover:text-[#60A5FA]
-                "
+                className="flex-shrink-0 px-4 py-2 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#94A3B8] text-[10px] font-bold active:scale-95 transition hover:border-[#3B82F6]/50 hover:text-[#60A5FA] touch-manipulation"
               >
                 {genre.name}
               </button>
@@ -874,57 +493,20 @@ export default function App() {
           </div>
         )}
 
-        {/* =========================
-            HERO
-        ========================= */}
-
-        {isHome && (
-          loading ? (
-            <div className="
-              h-[390px]
-              bg-[#111827]
-              rounded-[28px]
-              animate-pulse
-              border
-              border-[#1E293B]
-            " />
+        {/* HERO */}
+        {isHome &&
+          (loading ? (
+            <div className="h-[390px] bg-[#111827] rounded-[28px] animate-pulse border border-[#1E293B]" />
           ) : (
             featuredItem && (
-              <div className="
-                relative
-                overflow-hidden
-                rounded-[28px]
-                bg-[#111827]
-                border
-                border-[#1E293B]
-                shadow-2xl
-                shadow-black/40
-              ">
-                <div className="
-                  relative
-                  h-[390px]
-                  w-full
-                ">
+              <div className="relative overflow-hidden rounded-[28px] bg-[#111827] border border-[#1E293B] shadow-2xl shadow-black/40">
+                <div className="relative h-[390px] w-full">
                   <img
-                    src={`${BACKDROP_BASE_URL}${
-                      featuredItem.backdrop_path ||
-                      featuredItem.poster_path
-                    }`}
-                    alt={
-                      featuredItem.title ||
-                      featuredItem.name
-                    }
-                    className="
-                      w-full
-                      h-full
-                      object-cover
-                      scale-[1.01]
-                      transition-all
-                      duration-700
-                    "
+                    src={`${BACKDROP_BASE_URL}${featuredItem.backdrop_path || featuredItem.poster_path}`}
+                    alt={featuredItem.title || featuredItem.name}
+                    className="w-full h-full object-cover scale-[1.01] transition-all duration-700"
+                    loading="eager"
                   />
-
-                  {/* FIXED: Cinematic gradient overlays */}
                   <div
                     className="absolute inset-0"
                     style={{
@@ -932,7 +514,6 @@ export default function App() {
                         'linear-gradient(to top, #05070A 0%, rgba(5,7,10,0.55) 50%, rgba(5,7,10,0.10) 100%)'
                     }}
                   />
-
                   <div
                     className="absolute inset-0"
                     style={{
@@ -940,178 +521,57 @@ export default function App() {
                         'linear-gradient(to right, rgba(5,7,10,0.35), transparent, transparent)'
                     }}
                   />
-
                   <div
                     className="absolute inset-x-0 bottom-0 h-1/2"
-                    style={{
-                      backgroundImage:
-                        'linear-gradient(to top, #05070A, transparent)'
-                    }}
+                    style={{ backgroundImage: 'linear-gradient(to top, #05070A, transparent)' }}
                   />
 
-                  {/* Content */}
-
-                  <div className="
-                    absolute
-                    bottom-5
-                    inset-x-5
-                    space-y-3
-                  ">
-                    <div className="
-                      flex
-                      items-center
-                      gap-2
-                    ">
-                      <span className="
-                        bg-[#3B82F6]
-                        text-white
-                        px-2.5
-                        py-1
-                        rounded-full
-                        text-[9px]
-                        font-black
-                        shadow-lg
-                        shadow-[#3B82F6]/20
-                      ">
+                  <div className="absolute bottom-5 inset-x-5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-[#3B82F6] text-white px-2.5 py-1 rounded-full text-[9px] font-black shadow-lg shadow-[#3B82F6]/20">
                         {featuredItem.genre_ids?.length
-                          ? genresMap[
-                              featuredItem.genre_ids[0]
-                            ] || 'مميز'
+                          ? genresMap[featuredItem.genre_ids[0]] || 'مميز'
                           : 'مميز'}
                       </span>
-
-                      <span className="
-                        text-[9px]
-                        text-[#CBD5E1]
-                        bg-black/30
-                        backdrop-blur-md
-                        border
-                        border-white/10
-                        px-2
-                        py-1
-                        rounded-full
-                      ">
+                      <span className="text-[9px] text-[#CBD5E1] bg-black/30 backdrop-blur-md border border-white/10 px-2 py-1 rounded-full">
                         جديد
                       </span>
                     </div>
 
-                    <h1 className="
-                      text-[28px]
-                      font-black
-                      text-white
-                      leading-tight
-                      drop-shadow-lg
-                    ">
-                      {featuredItem.title ||
-                        featuredItem.name}
+                    <h1 className="text-[28px] font-black text-white leading-tight drop-shadow-lg line-clamp-1">
+                      {featuredItem.title || featuredItem.name}
                     </h1>
 
-                    <div className="
-                      flex
-                      items-center
-                      gap-2
-                      text-[10px]
-                      text-[#CBD5E1]
-                    ">
-                      <span className="
-                        text-[#60A5FA]
-                        font-bold
-                      ">
-                        ★{' '}
-                        {featuredItem.vote_average
-                          ? featuredItem.vote_average.toFixed(1)
-                          : '7.8'}
+                    <div className="flex items-center gap-2 text-[10px] text-[#CBD5E1]">
+                      <span className="text-[#60A5FA] font-bold">
+                        ★ {featuredItem.vote_average ? featuredItem.vote_average.toFixed(1) : '7.8'}
                       </span>
-
                       <span>•</span>
-
                       <span>
-                        {featuredItem.release_date?.substring(
-                          0,
-                          4
-                        ) ||
-                          featuredItem.first_air_date?.substring(
-                            0,
-                            4
-                          ) ||
+                        {featuredItem.release_date?.substring(0, 4) ||
+                          featuredItem.first_air_date?.substring(0, 4) ||
                           '2026'}
                       </span>
-
                       <span>•</span>
-
                       <span>HD</span>
                     </div>
 
-                    <div className="
-                      grid
-                      grid-cols-[1.35fr_1fr]
-                      gap-2
-                      pt-1
-                    ">
+                    <div className="grid grid-cols-[1.35fr_1fr] gap-2 pt-1">
                       <button
-                        onClick={() =>
-                          handlePlayTrailer(
-                            featuredItem,
-                            'movie'
-                          )
-                        }
-                        className="
-                          h-11
-                          bg-[#3B82F6]
-                          hover:bg-[#2563EB]
-                          text-white
-                          font-black
-                          rounded-2xl
-                          text-xs
-                          flex
-                          items-center
-                          justify-center
-                          gap-2
-                          shadow-xl
-                          shadow-[#3B82F6]/20
-                          active:scale-[.97]
-                          transition
-                        "
+                        onClick={() => handlePlayTrailer(featuredItem, 'movie')}
+                        className="h-11 bg-[#3B82F6] hover:bg-[#2563EB] text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-xl shadow-[#3B82F6]/20 active:scale-[.97] transition touch-manipulation"
                       >
                         <span>▶</span>
-                        <span>
-                          {lang === 'ar-SA'
-                            ? 'شاهد الآن'
-                            : 'Watch Now'}
-                        </span>
+                        <span>{lang === 'ar-SA' ? 'شاهد الآن' : 'Watch Now'}</span>
                       </button>
 
                       <button
-                        onClick={() =>
-                          toggleMyList(
-                            featuredItem,
-                            'movie'
-                          )
-                        }
-                        className="
-                          h-11
-                          bg-[#0F172A]/90
-                          backdrop-blur-md
-                          border
-                          border-white/10
-                          text-white
-                          font-bold
-                          rounded-2xl
-                          text-xs
-                          flex
-                          items-center
-                          justify-center
-                          gap-2
-                          active:scale-[.97]
-                          transition
-                        "
+                        onClick={() => toggleMyList(featuredItem, 'movie')}
+                        className="h-11 bg-[#0F172A]/90 backdrop-blur-md border border-white/10 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 active:scale-[.97] transition touch-manipulation"
                       >
                         <span className="text-base">
-                          {isInMyList(featuredItem.id)
-                            ? '✓'
-                            : '＋'}
+                          {isInMyList(featuredItem.id) ? '✓' : '＋'}
                         </span>
-
                         <span>
                           {isInMyList(featuredItem.id)
                             ? lang === 'ar-SA'
@@ -1124,155 +584,81 @@ export default function App() {
                       </button>
                     </div>
 
-                    <div className="
-                      flex
-                      justify-center
-                      gap-1.5
-                      pt-1
-                    ">
-                      {trendingList
-                        .slice(0, 5)
-                        .map((_, index) => (
-                          <button
-                            key={index}
-                            onClick={() =>
-                              setHeroIndex(index)
-                            }
-                            className={`
-                              h-1.5
-                              rounded-full
-                              transition-all
-                              ${
-                                heroIndex === index
-                                  ? 'w-6 bg-[#3B82F6]'
-                                  : 'w-1.5 bg-[#64748B]/60'
-                              }
-                            `}
-                          />
-                        ))}
+                    <div className="flex justify-center gap-1.5 pt-1">
+                      {trendingList.slice(0, 5).map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setHeroIndex(index)}
+                          className={`h-1.5 rounded-full transition-all ${
+                            heroIndex === index ? 'w-6 bg-[#3B82F6]' : 'w-1.5 bg-[#64748B]/60'
+                          }`}
+                        />
+                      ))}
                     </div>
                   </div>
                 </div>
               </div>
             )
-          )
-        )}
+          ))}
 
-        {/* =========================
-            HOME SECTIONS
-        ========================= */}
-
+        {/* HOME SECTIONS */}
         {isHome && (
           <div className="space-y-9">
             <HorizontalSection
-              title={
-                lang === 'ar-SA'
-                  ? 'الأكثر رواجاً'
-                  : 'Trending Now'
-              }
+              title={lang === 'ar-SA' ? 'الأكثر رواجاً' : 'Trending Now'}
               icon="🔥"
               items={trendingList}
               genresMap={genresMap}
               loading={loading}
-              onItemClick={(item) =>
-                handleOpenDetails(item, 'movie')
-              }
-              onViewAll={() =>
-                setActiveTab('movies')
-              }
+              onItemClick={(item) => handleOpenDetails(item, 'movie')}
+              onViewAll={() => setActiveTab('movies')}
               lang={lang}
             />
 
             <HorizontalSection
-              title={
-                lang === 'ar-SA'
-                  ? 'أحدث الأفلام'
-                  : 'Latest Movies'
-              }
+              title={lang === 'ar-SA' ? 'أحدث الأفلام' : 'Latest Movies'}
               icon="✦"
               items={latestMoviesList}
               genresMap={genresMap}
               loading={loading}
-              onItemClick={(item) =>
-                handleOpenDetails(item, 'movie')
-              }
-              onViewAll={() =>
-                setActiveTab('movies')
-              }
+              onItemClick={(item) => handleOpenDetails(item, 'movie')}
+              onViewAll={() => setActiveTab('movies')}
               lang={lang}
             />
 
             <HorizontalSection
-              title={
-                lang === 'ar-SA'
-                  ? 'الأعلى تقييماً'
-                  : 'Top Rated'
-              }
+              title={lang === 'ar-SA' ? 'الأعلى تقييماً' : 'Top Rated'}
               icon="★"
               items={topRatedList}
               genresMap={genresMap}
               loading={loading}
-              onItemClick={(item) =>
-                handleOpenDetails(item, 'movie')
-              }
-              onViewAll={() =>
-                setActiveTab('movies')
-              }
+              onItemClick={(item) => handleOpenDetails(item, 'movie')}
+              onViewAll={() => setActiveTab('movies')}
               lang={lang}
             />
 
             <HorizontalSection
-              title={
-                lang === 'ar-SA'
-                  ? 'المسلسلات الرائجة'
-                  : 'Popular TV'
-              }
+              title={lang === 'ar-SA' ? 'المسلسلات الرائجة' : 'Popular TV'}
               icon="▣"
               items={trendingTvList}
               genresMap={genresMap}
               loading={loading}
-              onItemClick={(item) =>
-                handleOpenDetails(item, 'tv')
-              }
-              onViewAll={() =>
-                setActiveTab('tv')
-              }
+              onItemClick={(item) => handleOpenDetails(item, 'tv')}
+              onViewAll={() => setActiveTab('tv')}
               lang={lang}
             />
 
             {/* STUDIOS */}
-
-            <div className="
-              pt-5
-              border-t
-              border-[#1E293B]
-              space-y-8
-            ">
+            <div className="pt-5 border-t border-[#1E293B] space-y-8">
               <SectionTitle
-                title={
-                  lang === 'ar-SA'
-                    ? 'شركات الإنتاج'
-                    : 'Production Studios'
-                }
+                title={lang === 'ar-SA' ? 'شركات الإنتاج' : 'Production Studios'}
                 icon="▣"
               />
 
               {STUDIOS.map((studio) => {
-                const studioItems =
-                  studioMoviesMap[studio.id] || [];
-
-                if (
-                  studioItems.length === 0 &&
-                  !loading
-                ) {
-                  return null;
-                }
-
-                const itemType =
-                  studio.id === 213 ||
-                  studio.id === 49
-                    ? 'tv'
-                    : 'movie';
+                const studioItems = studioMoviesMap[studio.id] || [];
+                if (studioItems.length === 0 && !loading) return null;
+                const itemType = studio.id === 213 || studio.id === 49 ? 'tv' : 'movie';
 
                 return (
                   <HorizontalSection
@@ -1282,19 +668,10 @@ export default function App() {
                     items={studioItems}
                     genresMap={genresMap}
                     loading={loading}
-                    onItemClick={(item) =>
-                      handleOpenDetails(
-                        item,
-                        itemType
-                      )
-                    }
+                    onItemClick={(item) => handleOpenDetails(item, itemType)}
                     onViewAll={() => {
                       setSelectedStudio(studio);
-                      setActiveTab(
-                        itemType === 'tv'
-                          ? 'tv'
-                          : 'movies'
-                      );
+                      setActiveTab(itemType === 'tv' ? 'tv' : 'movies');
                     }}
                     lang={lang}
                   />
@@ -1304,121 +681,59 @@ export default function App() {
           </div>
         )}
 
-        {/* =========================
-            MY LIST
-        ========================= */}
-
-        {activeTab === 'mylist' &&
-          !searchQuery && (
-            <div className="space-y-5">
-              <SectionTitle
-                title={
-                  lang === 'ar-SA'
-                    ? 'قائمتي'
-                    : 'My List'
-                }
-                icon="♥"
-              />
-
-              {myList.length === 0 ? (
-                <div className="
-                  text-center
-                  py-20
-                  text-[#64748B]
-                  space-y-3
-                ">
-                  <div className="
-                    mx-auto
-                    w-16
-                    h-16
-                    rounded-2xl
-                    bg-[#0F172A]
-                    border
-                    border-[#1E293B]
-                    flex
-                    items-center
-                    justify-center
-                    text-2xl
-                  ">
-                    ♡
-                  </div>
-
-                  <p className="text-xs">
-                    {lang === 'ar-SA'
-                      ? 'لم تقم بإضافة أي أعمال لقائمتك بعد.'
-                      : 'No items in your list yet.'}
-                  </p>
+        {/* MY LIST */}
+        {activeTab === 'mylist' && !debouncedSearch && (
+          <div className="space-y-5">
+            <SectionTitle title={lang === 'ar-SA' ? 'قائمتي' : 'My List'} icon="♥" />
+            {myList.length === 0 ? (
+              <div className="text-center py-20 text-[#64748B] space-y-3">
+                <div className="mx-auto w-16 h-16 rounded-2xl bg-[#0F172A] border border-[#1E293B] flex items-center justify-center text-2xl">
+                  ♡
                 </div>
-              ) : (
-                <div className="
-                  grid
-                  grid-cols-3
-                  gap-3
-                ">
-                  {myList.map((item) => (
-                    <MovieCard
-                      key={item.id}
-                      item={item}
-                      genresMap={genresMap}
-                      onClick={() =>
-                        handleOpenDetails(
-                          item,
-                          item.media_type || 'movie'
-                        )
-                      }
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                <p className="text-xs">
+                  {lang === 'ar-SA'
+                    ? 'لم تقم بإضافة أي أعمال لقائمتك بعد.'
+                    : 'No items in your list yet.'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                {myList.map((item) => (
+                  <MovieCard
+                    key={item.id}
+                    item={item}
+                    genresMap={genresMap}
+                    onClick={() => handleOpenDetails(item, item.media_type || 'movie')}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* =========================
-            GRID
-        ========================= */}
-
+        {/* GRID */}
         {(activeTab !== 'home' ||
-          searchQuery ||
+          debouncedSearch ||
           selectedGenre ||
           selectedStudio ||
           minRating > 0 ||
           selectedYear) &&
           activeTab !== 'mylist' && (
             <div className="space-y-5">
-              <div className="
-                flex
-                items-end
-                justify-between
-                gap-3
-              ">
+              <div className="flex items-end justify-between gap-3">
                 <div>
-                  <p className="
-                    text-[9px]
-                    text-[#64748B]
-                    mb-1
-                  ">
-                    {searchQuery
-                      ? 'SEARCH'
-                      : 'BROWSE'}
+                  <p className="text-[9px] text-[#64748B] mb-1">
+                    {debouncedSearch ? 'SEARCH' : 'BROWSE'}
                   </p>
-
-                  <h3 className="
-                    text-lg
-                    font-black
-                    text-white
-                  ">
-                    {searchQuery
+                  <h3 className="text-lg font-black text-white">
+                    {debouncedSearch
                       ? lang === 'ar-SA'
                         ? 'نتائج البحث'
                         : 'Search Results'
                       : selectedStudio
                       ? selectedStudio.name
                       : selectedGenre
-                      ? genres.find(
-                          (g) =>
-                            g.id ===
-                            Number(selectedGenre)
-                        )?.name
+                      ? genres.find((g) => g.id === Number(selectedGenre))?.name
                       : activeTab === 'movies'
                       ? lang === 'ar-SA'
                         ? 'الأفلام'
@@ -1429,81 +744,35 @@ export default function App() {
                   </h3>
                 </div>
 
-                {(selectedGenre ||
-                  selectedStudio ||
-                  minRating > 0 ||
-                  selectedYear) && (
+                {(selectedGenre || selectedStudio || minRating > 0 || selectedYear) && (
                   <button
                     onClick={resetFilters}
-                    className="
-                      text-[9px]
-                      text-[#60A5FA]
-                      bg-[#3B82F6]/10
-                      px-3
-                      py-1.5
-                      rounded-full
-                      border
-                      border-[#3B82F6]/20
-                    "
+                    className="text-[9px] text-[#60A5FA] bg-[#3B82F6]/10 px-3 py-1.5 rounded-full border border-[#3B82F6]/20 touch-manipulation"
                   >
-                    {lang === 'ar-SA'
-                      ? 'إلغاء الفلتر'
-                      : 'Clear'}
+                    {lang === 'ar-SA' ? 'إلغاء الفلتر' : 'Clear'}
                   </button>
                 )}
               </div>
 
               {loading ? (
-                <div className="
-                  grid
-                  grid-cols-3
-                  gap-3
-                ">
-                  {Array.from({
-                    length: 9
-                  }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="
-                        aspect-[2/3]
-                        bg-[#111827]
-                        rounded-2xl
-                        animate-pulse
-                      "
-                    />
+                <div className="grid grid-cols-3 gap-3">
+                  {Array.from({ length: 9 }).map((_, i) => (
+                    <div key={i} className="aspect-[2/3] bg-[#111827] rounded-2xl animate-pulse" />
                   ))}
                 </div>
               ) : gridItems.length === 0 ? (
-                <div className="
-                  text-center
-                  py-20
-                  text-[#64748B]
-                  text-xs
-                ">
-                  {lang === 'ar-SA'
-                    ? 'لم يتم العثور على نتائج.'
-                    : 'No results found.'}
+                <div className="text-center py-20 text-[#64748B] text-xs">
+                  {lang === 'ar-SA' ? 'لم يتم العثور على نتائج.' : 'No results found.'}
                 </div>
               ) : (
                 <>
-                  <div className="
-                    grid
-                    grid-cols-3
-                    gap-3
-                  ">
+                  <div className="grid grid-cols-3 gap-3">
                     {gridItems.map((item) => (
                       <MovieCard
                         key={item.id}
                         item={item}
                         genresMap={genresMap}
-                        onClick={() =>
-                          handleOpenDetails(
-                            item,
-                            activeTab === 'tv'
-                              ? 'tv'
-                              : 'movie'
-                          )
-                        }
+                        onClick={() => handleOpenDetails(item, activeTab === 'tv' ? 'tv' : 'movie')}
                       />
                     ))}
                   </div>
@@ -1512,19 +781,7 @@ export default function App() {
                     <button
                       onClick={handleLoadMore}
                       disabled={loadingMore}
-                      className="
-                        w-full
-                        h-12
-                        bg-[#0F172A]
-                        border
-                        border-[#1E293B]
-                        text-[#60A5FA]
-                        font-bold
-                        rounded-2xl
-                        text-xs
-                        active:scale-[.98]
-                        transition
-                      "
+                      className="w-full h-12 bg-[#0F172A] border border-[#1E293B] text-[#60A5FA] font-bold rounded-2xl text-xs active:scale-[.98] transition touch-manipulation"
                     >
                       {loadingMore
                         ? lang === 'ar-SA'
@@ -1541,50 +798,19 @@ export default function App() {
           )}
       </main>
 
-      {/* =========================
-          BOTTOM NAV
-      ========================= */}
-
-      <div className="
-        fixed
-        bottom-3
-        inset-x-3
-        mx-auto
-        max-w-md
-        z-40
-      ">
-        <nav className="
-          h-[66px]
-          bg-[#0B1220]/95
-          backdrop-blur-xl
-          border
-          border-[#1E293B]
-          rounded-3xl
-          shadow-2xl
-          shadow-black/50
-          flex
-          items-center
-          justify-around
-          px-1
-        ">
+      {/* BOTTOM NAV */}
+      <div className="fixed bottom-3 inset-x-3 mx-auto max-w-md z-40">
+        <nav className="h-[66px] bg-[#0B1220]/95 backdrop-blur-xl border border-[#1E293B] rounded-3xl shadow-2xl shadow-black/50 flex items-center justify-around px-1">
           <NavItem
             icon={
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
               </svg>
             }
-            label={
-              lang === 'ar-SA'
-                ? 'الرئيسية'
-                : 'Home'
-            }
+            label={lang === 'ar-SA' ? 'الرئيسية' : 'Home'}
             active={
               activeTab === 'home' &&
-              !searchQuery &&
+              !debouncedSearch &&
               !selectedGenre &&
               !selectedStudio &&
               !minRating &&
@@ -1598,22 +824,14 @@ export default function App() {
 
           <NavItem
             icon={
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
               </svg>
             }
-            label={
-              lang === 'ar-SA'
-                ? 'الأفلام'
-                : 'Movies'
-            }
+            label={lang === 'ar-SA' ? 'الأفلام' : 'Movies'}
             active={
               activeTab === 'movies' &&
-              !searchQuery &&
+              !debouncedSearch &&
               !selectedGenre &&
               !selectedStudio &&
               !minRating &&
@@ -1627,22 +845,14 @@ export default function App() {
 
           <NavItem
             icon={
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2V5c0-1.1-.89-2-1.99-2zm0 14H3V5h18v12z" />
               </svg>
             }
-            label={
-              lang === 'ar-SA'
-                ? 'المسلسلات'
-                : 'Series'
-            }
+            label={lang === 'ar-SA' ? 'المسلسلات' : 'Series'}
             active={
               activeTab === 'tv' &&
-              !searchQuery &&
+              !debouncedSearch &&
               !selectedGenre &&
               !selectedStudio &&
               !minRating &&
@@ -1656,22 +866,12 @@ export default function App() {
 
           <NavItem
             icon={
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
               </svg>
             }
-            label={
-              lang === 'ar-SA'
-                ? 'قائمتي'
-                : 'My List'
-            }
-            active={
-              activeTab === 'mylist'
-            }
+            label={lang === 'ar-SA' ? 'قائمتي' : 'My List'}
+            active={activeTab === 'mylist'}
             onClick={() => {
               setActiveTab('mylist');
               resetFilters();
@@ -1680,139 +880,49 @@ export default function App() {
         </nav>
       </div>
 
-      {/* =========================
-          FILTER MODAL
-      ========================= */}
-
+      {/* FILTER MODAL */}
       {showFilterModal && (
-        <div className="
-          fixed
-          inset-0
-          z-50
-          bg-black/80
-          backdrop-blur-md
-          flex
-          items-end
-          justify-center
-          p-3
-        ">
-          <div className="
-            bg-[#0F172A]
-            border
-            border-[#1E293B]
-            rounded-[28px]
-            w-full
-            max-w-md
-            p-5
-            space-y-5
-            shadow-2xl
-            max-h-[85vh]
-            overflow-y-auto
-          ">
-            <div className="
-              flex
-              justify-between
-              items-center
-            ">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end justify-center p-3">
+          <div className="bg-[#0F172A] border border-[#1E293B] rounded-[28px] w-full max-w-md p-5 space-y-5 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
               <div>
-                <p className="
-                  text-[9px]
-                  text-[#64748B]
-                  mb-1
-                ">
-                  MOVIX
-                </p>
-
-                <h3 className="
-                  text-base
-                  font-black
-                  text-white
-                ">
-                  {lang === 'ar-SA'
-                    ? 'تصفية المحتوى'
-                    : 'Filter Content'}
+                <p className="text-[9px] text-[#64748B] mb-1">MOVIX</p>
+                <h3 className="text-base font-black text-white">
+                  {lang === 'ar-SA' ? 'تصفية المحتوى' : 'Filter Content'}
                 </h3>
               </div>
-
               <button
-                onClick={() =>
-                  setShowFilterModal(false)
-                }
-                className="
-                  w-9
-                  h-9
-                  rounded-full
-                  bg-[#111827]
-                  border
-                  border-[#1E293B]
-                  text-[#94A3B8]
-                "
+                onClick={() => setShowFilterModal(false)}
+                className="w-9 h-9 rounded-full bg-[#111827] border border-[#1E293B] text-[#94A3B8] touch-manipulation"
               >
                 ✕
               </button>
             </div>
 
             <div className="space-y-3">
-              <label className="
-                text-[10px]
-                font-bold
-                text-[#94A3B8]
-              ">
-                {lang === 'ar-SA'
-                  ? 'التصنيف'
-                  : 'Genre'}
+              <label className="text-[10px] font-bold text-[#94A3B8]">
+                {lang === 'ar-SA' ? 'التصنيف' : 'Genre'}
               </label>
-
-              <div className="
-                grid
-                grid-cols-2
-                gap-2
-                max-h-40
-                overflow-y-auto
-              ">
+              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
                 <button
-                  onClick={() =>
-                    setTempGenre('')
-                  }
-                  className={`
-                    py-2
-                    rounded-xl
-                    text-[10px]
-                    font-bold
-                    border
-                    ${
-                      tempGenre === ''
-                        ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
-                        : 'bg-[#05070A] border-[#1E293B] text-[#94A3B8]'
-                    }
-                  `}
+                  onClick={() => setTempGenre('')}
+                  className={`py-2 rounded-xl text-[10px] font-bold border touch-manipulation ${
+                    tempGenre === ''
+                      ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
+                      : 'bg-[#05070A] border-[#1E293B] text-[#94A3B8]'
+                  }`}
                 >
-                  {lang === 'ar-SA'
-                    ? 'الكل'
-                    : 'All'}
+                  {lang === 'ar-SA' ? 'الكل' : 'All'}
                 </button>
-
                 {genres.map((g) => (
                   <button
                     key={g.id}
-                    onClick={() =>
-                      setTempGenre(g.id)
-                    }
-                    className={`
-                      py-2
-                      px-2
-                      rounded-xl
-                      text-[10px]
-                      font-bold
-                      truncate
-                      border
-                      ${
-                        String(tempGenre) ===
-                        String(g.id)
-                          ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
-                          : 'bg-[#05070A] border-[#1E293B] text-[#94A3B8]'
-                      }
-                    `}
+                    onClick={() => setTempGenre(g.id)}
+                    className={`py-2 px-2 rounded-xl text-[10px] font-bold truncate border touch-manipulation ${
+                      String(tempGenre) === String(g.id)
+                        ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
+                        : 'bg-[#05070A] border-[#1E293B] text-[#94A3B8]'
+                    }`}
                   >
                     {g.name}
                   </button>
@@ -1821,86 +931,33 @@ export default function App() {
             </div>
 
             <div className="space-y-2">
-              <label className="
-                text-[10px]
-                font-bold
-                text-[#94A3B8]
-                flex
-                justify-between
-              ">
-                <span>
-                  {lang === 'ar-SA'
-                    ? 'الحد الأدنى للتقييم'
-                    : 'Minimum Rating'}
-                </span>
-
-                <span className="text-[#60A5FA]">
-                  ★ {tempMinRating}+
-                </span>
+              <label className="text-[10px] font-bold text-[#94A3B8] flex justify-between">
+                <span>{lang === 'ar-SA' ? 'الحد الأدنى للتقييم' : 'Minimum Rating'}</span>
+                <span className="text-[#60A5FA]">★ {tempMinRating}+</span>
               </label>
-
               <input
                 type="range"
                 min="0"
                 max="9"
                 step="1"
                 value={tempMinRating}
-                onChange={(e) =>
-                  setTempMinRating(
-                    Number(e.target.value)
-                  )
-                }
-                className="
-                  w-full
-                  accent-[#3B82F6]
-                "
+                onChange={(e) => setTempMinRating(Number(e.target.value))}
+                className="w-full accent-[#3B82F6]"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="
-                text-[10px]
-                font-bold
-                text-[#94A3B8]
-              ">
-                {lang === 'ar-SA'
-                  ? 'سنة الإنتاج'
-                  : 'Release Year'}
+              <label className="text-[10px] font-bold text-[#94A3B8]">
+                {lang === 'ar-SA' ? 'سنة الإنتاج' : 'Release Year'}
               </label>
-
               <select
                 value={tempSelectedYear}
-                onChange={(e) =>
-                  setTempSelectedYear(
-                    e.target.value
-                  )
-                }
-                className="
-                  w-full
-                  bg-[#05070A]
-                  border
-                  border-[#1E293B]
-                  text-white
-                  text-xs
-                  rounded-xl
-                  p-3
-                  focus:outline-none
-                "
+                onChange={(e) => setTempSelectedYear(e.target.value)}
+                className="w-full bg-[#05070A] border border-[#1E293B] text-white text-xs rounded-xl p-3 focus:outline-none"
               >
-                <option value="">
-                  {lang === 'ar-SA'
-                    ? 'كل السنين'
-                    : 'All Years'}
-                </option>
-
-                {Array.from(
-                  { length: 25 },
-                  (_, i) => 2026 - i
-                ).map((y) => (
-                  <option
-                    key={y}
-                    value={y}
-                  >
+                <option value="">{lang === 'ar-SA' ? 'كل السنين' : 'All Years'}</option>
+                {Array.from({ length: 25 }, (_, i) => 2026 - i).map((y) => (
+                  <option key={y} value={y}>
                     {y}
                   </option>
                 ))}
@@ -1916,124 +973,42 @@ export default function App() {
                 setSearchQuery('');
                 setShowFilterModal(false);
               }}
-              className="
-                w-full
-                h-12
-                bg-[#3B82F6]
-                hover:bg-[#2563EB]
-                text-white
-                font-black
-                rounded-2xl
-                text-xs
-                shadow-lg
-                shadow-[#3B82F6]/20
-                active:scale-[.98]
-                transition
-              "
+              className="w-full h-12 bg-[#3B82F6] hover:bg-[#2563EB] text-white font-black rounded-2xl text-xs shadow-lg shadow-[#3B82F6]/20 active:scale-[.98] transition touch-manipulation"
             >
-              {lang === 'ar-SA'
-                ? 'تطبيق الفلتر'
-                : 'Apply Filters'}
+              {lang === 'ar-SA' ? 'تطبيق الفلتر' : 'Apply Filters'}
             </button>
           </div>
         </div>
       )}
 
-      {/* =========================
-          DETAILS
-      ========================= */}
-
+      {/* DETAILS */}
       {selectedItem && (
-        <div className="
-          fixed
-          inset-0
-          z-50
-          bg-[#05070A]
-          overflow-y-auto
-          min-h-screen
-          text-[#F8FAFC]
-        ">
+        <div className="fixed inset-0 z-50 bg-[#05070A] overflow-y-auto min-h-screen text-[#F8FAFC]">
           <button
-            onClick={() =>
-              setSelectedItem(null)
-            }
-            className="
-              fixed
-              top-4
-              left-4
-              z-[60]
-              w-10
-              h-10
-              rounded-full
-              bg-black/50
-              backdrop-blur-md
-              border
-              border-white/10
-              text-white
-              flex
-              items-center
-              justify-center
-              text-sm
-            "
+            onClick={() => setSelectedItem(null)}
+            className="fixed top-4 left-4 z-[60] w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white flex items-center justify-center text-sm touch-manipulation"
           >
             ✕
           </button>
 
           {detailsLoading ? (
-            <div className="
-              flex
-              justify-center
-              items-center
-              h-screen
-            ">
-              <div className="
-                animate-spin
-                rounded-full
-                h-9
-                w-9
-                border-2
-                border-[#3B82F6]
-                border-t-transparent
-              " />
+            <div className="flex justify-center items-center h-screen">
+              <div className="animate-spin rounded-full h-9 w-9 border-2 border-[#3B82F6] border-t-transparent" />
             </div>
           ) : (
             <div className="pb-24">
-              {/* DETAIL HERO */}
-
-              <div className="
-                relative
-                w-full
-                h-[430px]
-                bg-[#05070A]
-              ">
+              <div className="relative w-full h-[430px] bg-[#05070A]">
                 {details?.backdrop_path ? (
                   <img
                     src={`${BACKDROP_BASE_URL}${details.backdrop_path}`}
-                    alt={
-                      details?.title ||
-                      details?.name
-                    }
-                    className="
-                      w-full
-                      h-full
-                      object-cover
-                    "
+                    alt={details?.title || details?.name}
+                    className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="
-                    w-full
-                    h-full
-                    flex
-                    items-center
-                    justify-center
-                    text-[#64748B]
-                    text-xs
-                  ">
+                  <div className="w-full h-full flex items-center justify-center text-[#64748B] text-xs">
                     No Image
                   </div>
                 )}
-
-                {/* FIXED: Detail gradient */}
                 <div
                   className="absolute inset-0"
                   style={{
@@ -2042,457 +1017,181 @@ export default function App() {
                   }}
                 />
 
-                <div className="
-                  absolute
-                  bottom-6
-                  inset-x-5
-                  space-y-3
-                ">
-                  <div className="
-                    flex
-                    items-center
-                    gap-2
-                  ">
-                    <span className="
-                      bg-[#3B82F6]
-                      text-white
-                      px-2.5
-                      py-1
-                      rounded-full
-                      text-[10px]
-                      font-black
-                    ">
-                      ★{' '}
-                      {details?.vote_average?.toFixed(1) ||
-                        '0.0'}
+                <div className="absolute bottom-6 inset-x-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-[#3B82F6] text-white px-2.5 py-1 rounded-full text-[10px] font-black">
+                      ★ {details?.vote_average?.toFixed(1) || '0.0'}
                     </span>
-
-                    <span className="
-                      text-[10px]
-                      text-[#CBD5E1]
-                    ">
-                      {details?.release_date?.substring(
-                        0,
-                        4
-                      ) ||
-                        details?.first_air_date?.substring(
-                          0,
-                          4
-                        )}
+                    <span className="text-[10px] text-[#CBD5E1]">
+                      {details?.release_date?.substring(0, 4) ||
+                        details?.first_air_date?.substring(0, 4)}
                     </span>
                   </div>
 
-                  <h1 className="
-                    text-3xl
-                    font-black
-                    leading-tight
-                  ">
-                    {details?.title ||
-                      details?.name}
+                  <h1 className="text-3xl font-black leading-tight">
+                    {details?.title || details?.name}
                   </h1>
 
-                  <div className="
-                    flex
-                    flex-wrap
-                    gap-2
-                  ">
-                    {details?.genres
-                      ?.slice(0, 3)
-                      .map((g) => (
-                        <span
-                          key={g.id}
-                          className="
-                            text-[9px]
-                            text-[#CBD5E1]
-                            bg-white/5
-                            backdrop-blur-md
-                            border
-                            border-white/10
-                            px-2.5
-                            py-1
-                            rounded-full
-                          "
-                        >
-                          {g.name}
-                        </span>
-                      ))}
+                  <div className="flex flex-wrap gap-2">
+                    {details?.genres?.slice(0, 3).map((g) => (
+                      <span
+                        key={g.id}
+                        className="text-[9px] text-[#CBD5E1] bg-white/5 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-full"
+                      >
+                        {g.name}
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              <div className="
-                px-5
-                mt-1
-                space-y-7
-              ">
-                {/* ACTIONS */}
-
-                <div className="
-                  grid
-                  grid-cols-[1fr_auto]
-                  gap-2
-                ">
+              <div className="px-5 mt-1 space-y-7">
+                <div className="grid grid-cols-[1fr_auto] gap-2">
                   <button
-                    onClick={() =>
-                      handlePlayTrailer(
-                        details,
-                        selectedItemType
-                      )
-                    }
-                    className="
-                      h-12
-                      bg-[#3B82F6]
-                      text-white
-                      rounded-2xl
-                      text-xs
-                      font-black
-                      flex
-                      items-center
-                      justify-center
-                      gap-2
-                      shadow-lg
-                      shadow-[#3B82F6]/20
-                    "
+                    onClick={() => handlePlayTrailer(details, selectedItemType)}
+                    className="h-12 bg-[#3B82F6] text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-[#3B82F6]/20 touch-manipulation"
                   >
-                    ▶{' '}
-                    {lang === 'ar-SA'
-                      ? 'شاهد التريلر'
-                      : 'Watch Trailer'}
+                    ▶ {lang === 'ar-SA' ? 'شاهد التريلر' : 'Watch Trailer'}
                   </button>
 
                   <button
-                    onClick={() =>
-                      toggleMyList(
-                        details,
-                        selectedItemType
-                      )
-                    }
-                    className="
-                      h-12
-                      w-14
-                      bg-[#111827]
-                      border
-                      border-[#1E293B]
-                      rounded-2xl
-                      text-white
-                      text-lg
-                    "
+                    onClick={() => toggleMyList(details, selectedItemType)}
+                    className="h-12 w-14 bg-[#111827] border border-[#1E293B] rounded-2xl text-white text-lg touch-manipulation"
                   >
-                    {isInMyList(details?.id)
-                      ? '✓'
-                      : '＋'}
+                    {isInMyList(details?.id) ? '✓' : '＋'}
                   </button>
                 </div>
 
-                {/* OVERVIEW */}
-
                 <div className="space-y-3">
-                  <SectionTitle
-                    title={
-                      lang === 'ar-SA'
-                        ? 'القصة'
-                        : 'Overview'
-                    }
-                    icon="✦"
-                  />
-
-                  <p className="
-                    text-[#CBD5E1]
-                    text-xs
-                    leading-7
-                  ">
+                  <SectionTitle title={lang === 'ar-SA' ? 'القصة' : 'Overview'} icon="✦" />
+                  <p className="text-[#CBD5E1] text-xs leading-7">
                     {details?.overview ||
-                      (lang === 'ar-SA'
-                        ? 'لا يوجد وصف متاح.'
-                        : 'No overview available.')}
+                      (lang === 'ar-SA' ? 'لا يوجد وصف متاح.' : 'No overview available.')}
                   </p>
                 </div>
 
-                {/* SEASONS */}
+                {selectedItemType === 'tv' && details?.seasons?.length > 0 && (
+                  <div className="space-y-4">
+                    <SectionTitle
+                      title={lang === 'ar-SA' ? 'المواسم والحلقات' : 'Seasons & Episodes'}
+                      icon="▣"
+                    />
 
-                {selectedItemType === 'tv' &&
-                  details?.seasons?.length > 0 && (
-                    <div className="space-y-4">
-                      <SectionTitle
-                        title={
-                          lang === 'ar-SA'
-                            ? 'المواسم والحلقات'
-                            : 'Seasons & Episodes'
-                        }
-                        icon="▣"
-                      />
-
-                      <div className="
-                        flex
-                        gap-2
-                        overflow-x-auto
-                        scrollbar-none
-                      ">
-                        {details.seasons
-                          .filter(
-                            (s) =>
-                              s.season_number > 0
-                          )
-                          .map((s) => (
-                            <button
-                              key={s.id}
-                              onClick={() =>
-                                setSelectedSeasonNumber(
-                                  s.season_number
-                                )
-                              }
-                              className={`
-                                flex-shrink-0
-                                px-4
-                                py-2
-                                rounded-full
-                                text-[10px]
-                                font-bold
-                                border
-                                ${
-                                  selectedSeasonNumber ===
-                                  s.season_number
-                                    ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
-                                    : 'bg-[#111827] border-[#1E293B] text-[#94A3B8]'
-                                }
-                              `}
-                            >
-                              {lang === 'ar-SA'
-                                ? `الموسم ${s.season_number}`
-                                : `Season ${s.season_number}`}
-                            </button>
-                          ))}
-                      </div>
-
-                      {seasonLoading ? (
-                        <div className="
-                          text-center
-                          py-8
-                          text-xs
-                          text-[#64748B]
-                        ">
-                          {lang === 'ar-SA'
-                            ? 'جاري تحميل الحلقات...'
-                            : 'Loading episodes...'}
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {seasonDetails?.episodes?.map(
-                            (ep) => (
-                              <div
-                                key={ep.id}
-                                className="
-                                  flex
-                                  gap-3
-                                  bg-[#111827]
-                                  p-2
-                                  rounded-2xl
-                                  border
-                                  border-[#1E293B]
-                                "
-                              >
-                                <img
-                                  src={
-                                    ep.still_path
-                                      ? `${IMAGE_BASE_URL}${ep.still_path}`
-                                      : 'https://via.placeholder.com/100x60?text=EP'
-                                  }
-                                  alt={ep.name}
-                                  className="
-                                    w-20
-                                    h-12
-                                    rounded-xl
-                                    object-cover
-                                    flex-shrink-0
-                                  "
-                                />
-
-                                <div className="
-                                  min-w-0
-                                  flex-1
-                                  flex
-                                  flex-col
-                                  justify-center
-                                ">
-                                  <h4 className="
-                                    text-[10px]
-                                    font-bold
-                                    text-white
-                                    truncate
-                                  ">
-                                    {ep.episode_number}.{' '}
-                                    {ep.name}
-                                  </h4>
-
-                                  <p className="
-                                    text-[9px]
-                                    text-[#64748B]
-                                    mt-1
-                                    line-clamp-1
-                                  ">
-                                    {ep.overview ||
-                                      (lang === 'ar-SA'
-                                        ? 'بدون ملخص'
-                                        : 'No summary')}
-                                  </p>
-                                </div>
-
-                                <div className="
-                                  w-8
-                                  h-8
-                                  rounded-full
-                                  bg-[#0F172A]
-                                  self-center
-                                  flex
-                                  items-center
-                                  justify-center
-                                  text-[#60A5FA]
-                                ">
-                                  ▶
-                                </div>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      )}
+                    <div className="flex gap-2 overflow-x-auto scrollbar-none">
+                      {details.seasons
+                        .filter((s) => s.season_number > 0)
+                        .map((s) => (
+                          <button
+                            key={s.id}
+                            onClick={() => setSelectedSeasonNumber(s.season_number)}
+                            className={`flex-shrink-0 px-4 py-2 rounded-full text-[10px] font-bold border touch-manipulation ${
+                              selectedSeasonNumber === s.season_number
+                                ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
+                                : 'bg-[#111827] border-[#1E293B] text-[#94A3B8]'
+                            }`}
+                          >
+                            {lang === 'ar-SA'
+                              ? `الموسم ${s.season_number}`
+                              : `Season ${s.season_number}`}
+                          </button>
+                        ))}
                     </div>
-                  )}
 
-                {/* CAST */}
+                    {seasonLoading ? (
+                      <div className="text-center py-8 text-xs text-[#64748B]">
+                        {lang === 'ar-SA' ? 'جاري تحميل الحلقات...' : 'Loading episodes...'}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {seasonDetails?.episodes?.map((ep) => (
+                          <div
+                            key={ep.id}
+                            className="flex gap-3 bg-[#111827] p-2 rounded-2xl border border-[#1E293B]"
+                          >
+                            <img
+                              src={
+                                ep.still_path
+                                  ? `${IMAGE_BASE_URL}${ep.still_path}`
+                                  : 'https://via.placeholder.com/100x60?text=EP'
+                              }
+                              alt={ep.name}
+                              className="w-20 h-12 rounded-xl object-cover flex-shrink-0"
+                              loading="lazy"
+                            />
+                            <div className="min-w-0 flex-1 flex flex-col justify-center">
+                              <h4 className="text-[10px] font-bold text-white truncate">
+                                {ep.episode_number}. {ep.name}
+                              </h4>
+                              <p className="text-[9px] text-[#64748B] mt-1 line-clamp-1">
+                                {ep.overview || (lang === 'ar-SA' ? 'بدون ملخص' : 'No summary')}
+                              </p>
+                            </div>
+                            <div className="w-8 h-8 rounded-full bg-[#0F172A] self-center flex items-center justify-center text-[#60A5FA]">
+                              ▶
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {details?.credits?.cast?.length > 0 && (
                   <div className="space-y-4">
-                    <SectionTitle
-                      title={
-                        lang === 'ar-SA'
-                          ? 'طاقم التمثيل'
-                          : 'Cast'
-                      }
-                      icon="●"
-                    />
-
-                    <div className="
-                      flex
-                      gap-3
-                      overflow-x-auto
-                      scrollbar-none
-                    ">
-                      {details.credits.cast
-                        .slice(0, 10)
-                        .map((actor) => (
-                          <div
-                            key={actor.id}
-                            className="
-                              flex-shrink-0
-                              w-20
-                              text-center
-                            "
-                          >
-                            <div className="
-                              w-16
-                              h-16
-                              mx-auto
-                              rounded-full
-                              overflow-hidden
-                              border
-                              border-[#1E293B]
-                              bg-[#111827]
-                            ">
-                              <img
-                                src={
-                                  actor.profile_path
-                                    ? `${IMAGE_BASE_URL}${actor.profile_path}`
-                                    : 'https://via.placeholder.com/100?text=Actor'
-                                }
-                                alt={actor.name}
-                                className="
-                                  w-full
-                                  h-full
-                                  object-cover
-                                "
-                              />
-                            </div>
-
-                            <p className="
-                              text-[9px]
-                              font-bold
-                              text-white
-                              truncate
-                              mt-2
-                            ">
-                              {actor.name}
-                            </p>
+                    <SectionTitle title={lang === 'ar-SA' ? 'طاقم التمثيل' : 'Cast'} icon="●" />
+                    <div className="flex gap-3 overflow-x-auto scrollbar-none">
+                      {details.credits.cast.slice(0, 10).map((actor) => (
+                        <div key={actor.id} className="flex-shrink-0 w-20 text-center">
+                          <div className="w-16 h-16 mx-auto rounded-full overflow-hidden border border-[#1E293B] bg-[#111827]">
+                            <img
+                              src={
+                                actor.profile_path
+                                  ? `${IMAGE_BASE_URL}${actor.profile_path}`
+                                  : 'https://via.placeholder.com/100?text=Actor'
+                              }
+                              alt={actor.name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
                           </div>
-                        ))}
+                          <p className="text-[9px] font-bold text-white truncate mt-2">
+                            {actor.name}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
 
-                {/* SIMILAR / RECOMMENDATIONS */}
-
                 <div className="space-y-4">
-                  <div className="
-                    flex
-                    items-center
-                    gap-5
-                    border-b
-                    border-[#1E293B]
-                  ">
+                  <div className="flex items-center gap-5 border-b border-[#1E293B]">
                     <button
-                      onClick={() =>
-                        setActiveDetailTab('similar')
-                      }
-                      className={`
-                        pb-3
-                        text-[11px]
-                        font-bold
-                        ${
-                          activeDetailTab === 'similar'
-                            ? 'text-[#3B82F6] border-b-2 border-[#3B82F6]'
-                            : 'text-[#64748B]'
-                        }
-                      `}
+                      onClick={() => setActiveDetailTab('similar')}
+                      className={`pb-3 text-[11px] font-bold touch-manipulation ${
+                        activeDetailTab === 'similar'
+                          ? 'text-[#3B82F6] border-b-2 border-[#3B82F6]'
+                          : 'text-[#64748B]'
+                      }`}
                     >
-                      {lang === 'ar-SA'
-                        ? 'أعمال مشابهة'
-                        : 'Similar'}
+                      {lang === 'ar-SA' ? 'أعمال مشابهة' : 'Similar'}
                     </button>
-
                     <button
-                      onClick={() =>
-                        setActiveDetailTab(
-                          'recommendations'
-                        )
-                      }
-                      className={`
-                        pb-3
-                        text-[11px]
-                        font-bold
-                        ${
-                          activeDetailTab ===
-                          'recommendations'
-                            ? 'text-[#3B82F6] border-b-2 border-[#3B82F6]'
-                            : 'text-[#64748B]'
-                        }
-                      `}
+                      onClick={() => setActiveDetailTab('recommendations')}
+                      className={`pb-3 text-[11px] font-bold touch-manipulation ${
+                        activeDetailTab === 'recommendations'
+                          ? 'text-[#3B82F6] border-b-2 border-[#3B82F6]'
+                          : 'text-[#64748B]'
+                      }`}
                     >
-                      {lang === 'ar-SA'
-                        ? 'مقترح لك'
-                        : 'Recommended'}
+                      {lang === 'ar-SA' ? 'مقترح لك' : 'Recommended'}
                     </button>
                   </div>
 
-                  <div className="
-                    grid
-                    grid-cols-3
-                    gap-3
-                  ">
+                  <div className="grid grid-cols-3 gap-3">
                     {(
-                      (
-                        activeDetailTab === 'similar'
-                          ? details?.similar?.results
-                          : details?.recommendations?.results
-                      ) || []
+                      (activeDetailTab === 'similar'
+                        ? details?.similar?.results
+                        : details?.recommendations?.results) || []
                     )
                       .slice(0, 6)
                       .map((item) => (
@@ -2500,12 +1199,7 @@ export default function App() {
                           key={item.id}
                           item={item}
                           genresMap={genresMap}
-                          onClick={() =>
-                            handleOpenDetails(
-                              item,
-                              selectedItemType
-                            )
-                          }
+                          onClick={() => handleOpenDetails(item, selectedItemType)}
                         />
                       ))}
                   </div>
@@ -2516,62 +1210,20 @@ export default function App() {
         </div>
       )}
 
-      {/* =========================
-          TRAILER
-      ========================= */}
-
+      {/* TRAILER MODAL */}
       {trailerKey && (
-        <div className="
-          fixed
-          inset-0
-          z-[70]
-          bg-black/95
-          flex
-          items-center
-          justify-center
-          p-3
-          backdrop-blur-md
-        ">
-          <div className="
-            relative
-            w-full
-            aspect-video
-            rounded-2xl
-            overflow-hidden
-            bg-black
-            border
-            border-[#1E293B]
-            shadow-2xl
-          ">
+        <div className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-3 backdrop-blur-md">
+          <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-[#1E293B] shadow-2xl">
             <button
-              onClick={() =>
-                setTrailerKey(null)
-              }
-              className="
-                absolute
-                top-2
-                right-2
-                bg-[#3B82F6]
-                text-white
-                w-8
-                h-8
-                rounded-full
-                text-xs
-                font-bold
-                z-10
-              "
+              onClick={() => setTrailerKey(null)}
+              className="absolute top-2 right-2 bg-[#3B82F6] text-white w-8 h-8 rounded-full text-xs font-bold z-10 touch-manipulation"
             >
               ✕
             </button>
-
             <iframe
               src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
               title="Trailer"
-              className="
-                w-full
-                h-full
-                border-0
-              "
+              className="w-full h-full border-0"
               allow="autoplay; encrypted-media"
               allowFullScreen
             />
@@ -2582,343 +1234,106 @@ export default function App() {
   );
 }
 
-/* =========================================================
-   SECTION TITLE
-========================================================= */
+/* SECTION TITLE */
+const SectionTitle = React.memo(({ title, icon }) => (
+  <div className="flex items-center gap-2.5">
+    <span className="w-1 h-5 rounded-full bg-[#3B82F6] shadow-md shadow-[#3B82F6]/30" />
+    <span className="text-sm font-black text-white">
+      {icon} {title}
+    </span>
+  </div>
+));
 
-function SectionTitle({
-  title,
-  icon
-}) {
-  return (
-    <div className="
-      flex
-      items-center
-      gap-2.5
-    ">
-      <span className="
-        w-1
-        h-5
-        rounded-full
-        bg-[#3B82F6]
-        shadow-md
-        shadow-[#3B82F6]/30
-      " />
-
-      <span className="
-        text-sm
-        font-black
-        text-white
-      ">
-        {icon} {title}
-      </span>
-    </div>
-  );
-}
-
-/* =========================================================
-   HORIZONTAL SECTION
-========================================================= */
-
-function HorizontalSection({
-  title,
-  icon,
-  items,
-  genresMap,
-  loading,
-  onItemClick,
-  onViewAll,
-  lang
-}) {
-  return (
+/* HORIZONTAL SECTION */
+const HorizontalSection = React.memo(
+  ({ title, icon, items, genresMap, loading, onItemClick, onViewAll, lang }) => (
     <div className="space-y-3">
-      <div className="
-        flex
-        items-center
-        justify-between
-      ">
-        <SectionTitle
-          title={title}
-          icon={icon}
-        />
-
+      <div className="flex items-center justify-between">
+        <SectionTitle title={title} icon={icon} />
         {onViewAll && (
           <button
             onClick={onViewAll}
-            className="
-              text-[10px]
-              text-[#60A5FA]
-              font-bold
-              active:scale-95
-            "
+            className="text-[10px] text-[#60A5FA] font-bold active:scale-95 touch-manipulation"
           >
-            {lang === 'ar-SA'
-              ? 'عرض الكل ›'
-              : 'See All ›'}
+            {lang === 'ar-SA' ? 'عرض الكل ›' : 'See All ›'}
           </button>
         )}
       </div>
 
       {loading ? (
-        <div className="
-          flex
-          gap-3
-          overflow-x-auto
-          scrollbar-none
-        ">
-          {Array.from({
-            length: 4
-          }).map((_, i) => (
+        <div className="flex gap-3 overflow-x-auto scrollbar-none">
+          {Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
-              className="
-                w-[128px]
-                h-[220px]
-                bg-[#111827]
-                rounded-2xl
-                animate-pulse
-                flex-shrink-0
-              "
+              className="w-[128px] h-[220px] bg-[#111827] rounded-2xl animate-pulse flex-shrink-0"
             />
           ))}
         </div>
       ) : (
-        <div className="
-          flex
-          gap-3
-          overflow-x-auto
-          scrollbar-none
-          pb-1
-        ">
+        <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1 will-change-transform">
           {items.map((item) => (
-            <div
-              key={item.id}
-              className="
-                w-[128px]
-                flex-shrink-0
-              "
-            >
-              <MovieCard
-                item={item}
-                genresMap={genresMap}
-                onClick={() =>
-                  onItemClick(item)
-                }
-              />
+            <div key={item.id} className="w-[128px] flex-shrink-0">
+              <MovieCard item={item} genresMap={genresMap} onClick={() => onItemClick(item)} />
             </div>
           ))}
         </div>
       )}
     </div>
-  );
-}
+  )
+);
 
-/* =========================================================
-   MOVIE CARD
-========================================================= */
-
-function MovieCard({
-  item,
-  genresMap = {},
-  onClick
-}) {
-  return (
-    <div
-      onClick={onClick}
-      className="
-        group
-        cursor-pointer
-        active:scale-[.97]
-        transition
-      "
-    >
-      <div className="
-        relative
-        aspect-[2/3]
-        rounded-2xl
-        overflow-hidden
-        bg-[#111827]
-        border
-        border-[#1E293B]
-        shadow-lg
-        shadow-black/20
-      ">
-        {item.poster_path ? (
-          <img
-            src={`${IMAGE_BASE_URL}${item.poster_path}`}
-            alt={
-              item.title ||
-              item.name
-            }
-            className="
-              w-full
-              h-full
-              object-cover
-              group-hover:scale-105
-              transition
-              duration-500
-            "
-            loading="lazy"
-          />
-        ) : (
-          <div className="
-            w-full
-            h-full
-            flex
-            items-center
-            justify-center
-            text-[#64748B]
-            text-[9px]
-          ">
-            No Image
-          </div>
-        )}
-
-        <div className="
-          absolute
-          inset-x-0
-          bottom-0
-          h-1/3
-          bg-gradient-to-t
-          from-black/80
-          to-transparent
-        " />
-
-        <div className="
-          absolute
-          top-2
-          right-2
-          bg-[#05070A]/80
-          backdrop-blur-md
-          border
-          border-white/10
-          px-2
-          py-1
-          rounded-full
-          text-[9px]
-          font-black
-          text-white
-          flex
-          items-center
-          gap-1
-        ">
-          <span className="text-[#60A5FA]">
-            ★
-          </span>
-
-          <span>
-            {item.vote_average
-              ? item.vote_average.toFixed(1)
-              : '7.5'}
-          </span>
+/* MOVIE CARD */
+const MovieCard = React.memo(({ item, genresMap = {}, onClick }) => (
+  <div
+    onClick={onClick}
+    className="group cursor-pointer active:scale-[.97] transition touch-manipulation"
+  >
+    <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-[#111827] border border-[#1E293B] shadow-lg shadow-black/20">
+      {item.poster_path ? (
+        <img
+          src={`${IMAGE_BASE_URL}${item.poster_path}`}
+          alt={item.title || item.name}
+          className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-[#64748B] text-[9px]">
+          No Image
         </div>
-      </div>
-
-      <div className="
-        px-0.5
-        pt-2
-      ">
-        <h4 className="
-          text-[11px]
-          font-bold
-          text-white
-          truncate
-        ">
-          {item.title ||
-            item.name}
-        </h4>
-
-        <div className="
-          flex
-          items-center
-          justify-between
-          mt-1
-        ">
-          <p className="
-            text-[9px]
-            text-[#64748B]
-          ">
-            {item.release_date?.substring(
-              0,
-              4
-            ) ||
-              item.first_air_date?.substring(
-                0,
-                4
-              ) ||
-              '2026'}
-          </p>
-
-          <span className="
-            text-[8px]
-            text-[#475569]
-          ">
-            HD
-          </span>
-        </div>
+      )}
+      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/80 to-transparent" />
+      <div className="absolute top-2 right-2 bg-[#05070A]/80 backdrop-blur-md border border-white/10 px-2 py-1 rounded-full text-[9px] font-black text-white flex items-center gap-1">
+        <span className="text-[#60A5FA]">★</span>
+        <span>{item.vote_average ? item.vote_average.toFixed(1) : '7.5'}</span>
       </div>
     </div>
-  );
-}
 
-/* =========================================================
-   NAV ITEM
-========================================================= */
-
-function NavItem({
-  icon,
-  label,
-  active,
-  onClick
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        relative
-        min-w-[68px]
-        h-14
-        rounded-2xl
-        flex
-        flex-col
-        items-center
-        justify-center
-        gap-1
-        transition
-        active:scale-95
-        ${
-          active
-            ? 'text-[#3B82F6]'
-            : 'text-[#64748B] hover:text-[#CBD5E1]'
-        }
-      `}
-    >
-      {active && (
-        <div className="
-          absolute
-          top-0
-          w-8
-          h-0.5
-          rounded-full
-          bg-[#3B82F6]
-          shadow-lg
-          shadow-[#3B82F6]
-        " />
-      )}
-
-      <div className="
-        w-5
-        h-5
-      ">
-        {icon}
+    <div className="px-0.5 pt-2">
+      <h4 className="text-[11px] font-bold text-white truncate">{item.title || item.name}</h4>
+      <div className="flex items-center justify-between mt-1">
+        <p className="text-[9px] text-[#64748B]">
+          {item.release_date?.substring(0, 4) ||
+            item.first_air_date?.substring(0, 4) ||
+            '2026'}
+        </p>
+        <span className="text-[8px] text-[#475569]">HD</span>
       </div>
+    </div>
+  </div>
+));
 
-      <span className="
-        text-[9px]
-        font-bold
-      ">
-        {label}
-      </span>
-    </button>
-  );
-    }
+/* NAV ITEM */
+const NavItem = React.memo(({ icon, label, active, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`relative min-w-[68px] h-14 rounded-2xl flex flex-col items-center justify-center gap-1 transition active:scale-95 touch-manipulation ${
+      active ? 'text-[#3B82F6]' : 'text-[#64748B] hover:text-[#CBD5E1]'
+    }`}
+  >
+    {active && (
+      <div className="absolute top-0 w-8 h-0.5 rounded-full bg-[#3B82F6] shadow-lg shadow-[#3B82F6]" />
+    )}
+    <div className="w-5 h-5">{icon}</div>
+    <span className="text-[9px] font-bold">{label}</span>
+  </button>
+));
