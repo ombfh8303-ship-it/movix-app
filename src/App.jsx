@@ -19,7 +19,7 @@ const STUDIOS = [
   { id: 174, name: 'Warner Bros.', logo: 'https://image.tmdb.org/t/p/w200/vRu23414115.png' },
   { id: 49, name: 'HBO', logo: 'https://image.tmdb.org/t/p/w200/tuomPhY213.png' },
   { id: 33, name: 'Universal', logo: 'https://image.tmdb.org/t/p/w200/83o331.png' },
-  { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' },
+  { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
 export default function App() {
@@ -292,9 +292,7 @@ export default function App() {
               item.first_air_date ||
               '';
 
-            return date.startsWith(
-              selectedYear
-            );
+            return date.startsWith(selectedYear);
           });
         }
 
@@ -651,7 +649,6 @@ export default function App() {
           : 'ltr'
       }
     >
-
       {/* =========================
           HEADER
       ========================= */}
@@ -664,7 +661,6 @@ export default function App() {
         items-center
         justify-between
       ">
-
         <div
           className="flex items-center gap-2 cursor-pointer"
           onClick={() => {
@@ -713,12 +709,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="
-          flex
-          items-center
-          gap-2
-        ">
-
+        <div className="flex items-center gap-2">
           <button
             onClick={() =>
               setLang((p) =>
@@ -756,9 +747,7 @@ export default function App() {
             onClick={() => {
               setTempGenre(selectedGenre);
               setTempMinRating(minRating);
-              setTempSelectedYear(
-                selectedYear
-              );
+              setTempSelectedYear(selectedYear);
               setShowFilterModal(true);
             }}
             className="
@@ -787,9 +776,7 @@ export default function App() {
       ========================= */}
 
       <div className="px-4 pt-3">
-
         <div className="relative group">
-
           <div className="
             absolute
             inset-y-0
@@ -813,9 +800,7 @@ export default function App() {
             }
             value={searchQuery}
             onChange={(e) => {
-              setSearchQuery(
-                e.target.value
-              );
+              setSearchQuery(e.target.value);
               setSelectedGenre('');
               setSelectedStudio(null);
             }}
@@ -847,7 +832,6 @@ export default function App() {
         pt-5
         space-y-8
       ">
-
         {/* =========================
             GENRE CHIPS
         ========================= */}
@@ -864,9 +848,7 @@ export default function App() {
               <button
                 key={genre.id}
                 onClick={() => {
-                  setSelectedGenre(
-                    genre.id
-                  );
+                  setSelectedGenre(genre.id);
                   setActiveTab('movies');
                 }}
                 className="
@@ -918,13 +900,11 @@ export default function App() {
                 shadow-2xl
                 shadow-black/40
               ">
-
                 <div className="
                   relative
                   h-[390px]
                   w-full
                 ">
-
                   <img
                     src={`${BACKDROP_BASE_URL}${
                       featuredItem.backdrop_path ||
@@ -941,37 +921,33 @@ export default function App() {
                       scale-[1.01]
                       transition-all
                       duration-700
-                    }
+                    "
                   />
 
-                  {/* Cinematic gradients */}
-                  <div className="
-                    absolute
-                    inset-0
-                    bg-gradient-to-t
-                    from-[#05070A]
-                    via-[#05070A]/55
-                    to-[#05070A]/10
-                  " />
+                  {/* FIXED: Cinematic gradient overlays */}
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage:
+                        'linear-gradient(to top, #05070A 0%, rgba(5,7,10,0.55) 50%, rgba(5,7,10,0.10) 100%)'
+                    }}
+                  />
 
-                  <div className="
-                    absolute
-                    inset-0
-                    bg-gradient-to-r
-                    from-[#05070A]/35
-                    via-transparent
-                    to-transparent
-                  " />
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage:
+                        'linear-gradient(to right, rgba(5,7,10,0.35), transparent, transparent)'
+                    }}
+                  />
 
-                  <div className="
-                    absolute
-                    inset-x-0
-                    bottom-0
-                    h-1/2
-                    bg-gradient-to-t
-                    from-[#05070A]
-                    to-transparent
-                  " />
+                  <div
+                    className="absolute inset-x-0 bottom-0 h-1/2"
+                    style={{
+                      backgroundImage:
+                        'linear-gradient(to top, #05070A, transparent)'
+                    }}
+                  />
 
                   {/* Content */}
 
@@ -981,13 +957,11 @@ export default function App() {
                     inset-x-5
                     space-y-3
                   ">
-
                     <div className="
                       flex
                       items-center
                       gap-2
                     ">
-
                       <span className="
                         bg-[#3B82F6]
                         text-white
@@ -1039,13 +1013,11 @@ export default function App() {
                       text-[10px]
                       text-[#CBD5E1]
                     ">
-
                       <span className="
                         text-[#60A5FA]
                         font-bold
                       ">
-                        ★
-                        {' '}
+                        ★{' '}
                         {featuredItem.vote_average
                           ? featuredItem.vote_average.toFixed(1)
                           : '7.8'}
@@ -1067,9 +1039,7 @@ export default function App() {
 
                       <span>•</span>
 
-                      <span>
-                        HD
-                      </span>
+                      <span>HD</span>
                     </div>
 
                     <div className="
@@ -1078,7 +1048,6 @@ export default function App() {
                       gap-2
                       pt-1
                     ">
-
                       <button
                         onClick={() =>
                           handlePlayTrailer(
@@ -1138,17 +1107,13 @@ export default function App() {
                         "
                       >
                         <span className="text-base">
-                          {isInMyList(
-                            featuredItem.id
-                          )
+                          {isInMyList(featuredItem.id)
                             ? '✓'
                             : '＋'}
                         </span>
 
                         <span>
-                          {isInMyList(
-                            featuredItem.id
-                          )
+                          {isInMyList(featuredItem.id)
                             ? lang === 'ar-SA'
                               ? 'في قائمتي'
                               : 'In List'
@@ -1158,8 +1123,6 @@ export default function App() {
                         </span>
                       </button>
                     </div>
-
-                    {/* Slider dots */}
 
                     <div className="
                       flex
@@ -1173,9 +1136,7 @@ export default function App() {
                           <button
                             key={index}
                             onClick={() =>
-                              setHeroIndex(
-                                index
-                              )
+                              setHeroIndex(index)
                             }
                             className={`
                               h-1.5
@@ -1203,7 +1164,6 @@ export default function App() {
 
         {isHome && (
           <div className="space-y-9">
-
             <HorizontalSection
               title={
                 lang === 'ar-SA'
@@ -1215,10 +1175,7 @@ export default function App() {
               genresMap={genresMap}
               loading={loading}
               onItemClick={(item) =>
-                handleOpenDetails(
-                  item,
-                  'movie'
-                )
+                handleOpenDetails(item, 'movie')
               }
               onViewAll={() =>
                 setActiveTab('movies')
@@ -1237,10 +1194,7 @@ export default function App() {
               genresMap={genresMap}
               loading={loading}
               onItemClick={(item) =>
-                handleOpenDetails(
-                  item,
-                  'movie'
-                )
+                handleOpenDetails(item, 'movie')
               }
               onViewAll={() =>
                 setActiveTab('movies')
@@ -1259,10 +1213,7 @@ export default function App() {
               genresMap={genresMap}
               loading={loading}
               onItemClick={(item) =>
-                handleOpenDetails(
-                  item,
-                  'movie'
-                )
+                handleOpenDetails(item, 'movie')
               }
               onViewAll={() =>
                 setActiveTab('movies')
@@ -1281,10 +1232,7 @@ export default function App() {
               genresMap={genresMap}
               loading={loading}
               onItemClick={(item) =>
-                handleOpenDetails(
-                  item,
-                  'tv'
-                )
+                handleOpenDetails(item, 'tv')
               }
               onViewAll={() =>
                 setActiveTab('tv')
@@ -1300,7 +1248,6 @@ export default function App() {
               border-[#1E293B]
               space-y-8
             ">
-
               <SectionTitle
                 title={
                   lang === 'ar-SA'
@@ -1312,9 +1259,7 @@ export default function App() {
 
               {STUDIOS.map((studio) => {
                 const studioItems =
-                  studioMoviesMap[
-                    studio.id
-                  ] || [];
+                  studioMoviesMap[studio.id] || [];
 
                 if (
                   studioItems.length === 0 &&
@@ -1344,9 +1289,7 @@ export default function App() {
                       )
                     }
                     onViewAll={() => {
-                      setSelectedStudio(
-                        studio
-                      );
+                      setSelectedStudio(studio);
                       setActiveTab(
                         itemType === 'tv'
                           ? 'tv'
@@ -1368,7 +1311,6 @@ export default function App() {
         {activeTab === 'mylist' &&
           !searchQuery && (
             <div className="space-y-5">
-
               <SectionTitle
                 title={
                   lang === 'ar-SA'
@@ -1421,8 +1363,7 @@ export default function App() {
                       onClick={() =>
                         handleOpenDetails(
                           item,
-                          item.media_type ||
-                            'movie'
+                          item.media_type || 'movie'
                         )
                       }
                     />
@@ -1444,14 +1385,12 @@ export default function App() {
           selectedYear) &&
           activeTab !== 'mylist' && (
             <div className="space-y-5">
-
               <div className="
                 flex
                 items-end
                 justify-between
                 gap-3
               ">
-
                 <div>
                   <p className="
                     text-[9px]
@@ -1478,12 +1417,9 @@ export default function App() {
                       ? genres.find(
                           (g) =>
                             g.id ===
-                            Number(
-                              selectedGenre
-                            )
+                            Number(selectedGenre)
                         )?.name
-                      : activeTab ===
-                        'movies'
+                      : activeTab === 'movies'
                       ? lang === 'ar-SA'
                         ? 'الأفلام'
                         : 'Movies'
@@ -1555,37 +1491,27 @@ export default function App() {
                     grid-cols-3
                     gap-3
                   ">
-                    {gridItems.map(
-                      (item) => (
-                        <MovieCard
-                          key={item.id}
-                          item={item}
-                          genresMap={
-                            genresMap
-                          }
-                          onClick={() =>
-                            handleOpenDetails(
-                              item,
-                              activeTab ===
-                                'tv'
-                                ? 'tv'
-                                : 'movie'
-                            )
-                          }
-                        />
-                      )
-                    )}
+                    {gridItems.map((item) => (
+                      <MovieCard
+                        key={item.id}
+                        item={item}
+                        genresMap={genresMap}
+                        onClick={() =>
+                          handleOpenDetails(
+                            item,
+                            activeTab === 'tv'
+                              ? 'tv'
+                              : 'movie'
+                          )
+                        }
+                      />
+                    ))}
                   </div>
 
-                  {page <
-                    totalPages && (
+                  {page < totalPages && (
                     <button
-                      onClick={
-                        handleLoadMore
-                      }
-                      disabled={
-                        loadingMore
-                      }
+                      onClick={handleLoadMore}
+                      disabled={loadingMore}
                       className="
                         w-full
                         h-12
@@ -1627,7 +1553,6 @@ export default function App() {
         max-w-md
         z-40
       ">
-
         <nav className="
           h-[66px]
           bg-[#0B1220]/95
@@ -1642,7 +1567,6 @@ export default function App() {
           justify-around
           px-1
         ">
-
           <NavItem
             icon={
               <svg
@@ -1708,7 +1632,7 @@ export default function App() {
                 viewBox="0 0 24 24"
                 fill="currentColor"
               >
-                <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z" />
+                <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2V5c0-1.1-.89-2-1.99-2zm0 14H3V5h18v12z" />
               </svg>
             }
             label={
@@ -1772,7 +1696,6 @@ export default function App() {
           justify-center
           p-3
         ">
-
           <div className="
             bg-[#0F172A]
             border
@@ -1786,13 +1709,11 @@ export default function App() {
             max-h-[85vh]
             overflow-y-auto
           ">
-
             <div className="
               flex
               justify-between
               items-center
             ">
-
               <div>
                 <p className="
                   text-[9px]
@@ -1832,7 +1753,6 @@ export default function App() {
             </div>
 
             <div className="space-y-3">
-
               <label className="
                 text-[10px]
                 font-bold
@@ -1850,7 +1770,6 @@ export default function App() {
                 max-h-40
                 overflow-y-auto
               ">
-
                 <button
                   onClick={() =>
                     setTempGenre('')
@@ -1888,9 +1807,7 @@ export default function App() {
                       truncate
                       border
                       ${
-                        String(
-                          tempGenre
-                        ) ===
+                        String(tempGenre) ===
                         String(g.id)
                           ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
                           : 'bg-[#05070A] border-[#1E293B] text-[#94A3B8]'
@@ -1904,7 +1821,6 @@ export default function App() {
             </div>
 
             <div className="space-y-2">
-
               <label className="
                 text-[10px]
                 font-bold
@@ -1918,9 +1834,7 @@ export default function App() {
                     : 'Minimum Rating'}
                 </span>
 
-                <span className="
-                  text-[#60A5FA]
-                ">
+                <span className="text-[#60A5FA]">
                   ★ {tempMinRating}+
                 </span>
               </label>
@@ -1933,9 +1847,7 @@ export default function App() {
                 value={tempMinRating}
                 onChange={(e) =>
                   setTempMinRating(
-                    Number(
-                      e.target.value
-                    )
+                    Number(e.target.value)
                   )
                 }
                 className="
@@ -1946,7 +1858,6 @@ export default function App() {
             </div>
 
             <div className="space-y-2">
-
               <label className="
                 text-[10px]
                 font-bold
@@ -1958,9 +1869,7 @@ export default function App() {
               </label>
 
               <select
-                value={
-                  tempSelectedYear
-                }
+                value={tempSelectedYear}
                 onChange={(e) =>
                   setTempSelectedYear(
                     e.target.value
@@ -1986,8 +1895,7 @@ export default function App() {
 
                 {Array.from(
                   { length: 25 },
-                  (_, i) =>
-                    2026 - i
+                  (_, i) => 2026 - i
                 ).map((y) => (
                   <option
                     key={y}
@@ -2001,15 +1909,9 @@ export default function App() {
 
             <button
               onClick={() => {
-                setSelectedGenre(
-                  tempGenre
-                );
-                setMinRating(
-                  tempMinRating
-                );
-                setSelectedYear(
-                  tempSelectedYear
-                );
+                setSelectedGenre(tempGenre);
+                setMinRating(tempMinRating);
+                setSelectedYear(tempSelectedYear);
                 setSelectedStudio(null);
                 setSearchQuery('');
                 setShowFilterModal(false);
@@ -2051,7 +1953,6 @@ export default function App() {
           min-h-screen
           text-[#F8FAFC]
         ">
-
           <button
             onClick={() =>
               setSelectedItem(null)
@@ -2097,7 +1998,6 @@ export default function App() {
             </div>
           ) : (
             <div className="pb-24">
-
               {/* DETAIL HERO */}
 
               <div className="
@@ -2106,7 +2006,6 @@ export default function App() {
                 h-[430px]
                 bg-[#05070A]
               ">
-
                 {details?.backdrop_path ? (
                   <img
                     src={`${BACKDROP_BASE_URL}${details.backdrop_path}`}
@@ -2134,14 +2033,14 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="
-                  absolute
-                  inset-0
-                  bg-gradient-to-t
-                  from-[#05070A]
-                  via-[#05070A]/35
-                  to-transparent
-                " />
+                {/* FIXED: Detail gradient */}
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage:
+                      'linear-gradient(to top, #05070A 0%, rgba(5,7,10,0.35) 55%, transparent 100%)'
+                  }}
+                />
 
                 <div className="
                   absolute
@@ -2149,13 +2048,11 @@ export default function App() {
                   inset-x-5
                   space-y-3
                 ">
-
                   <div className="
                     flex
                     items-center
                     gap-2
                   ">
-
                     <span className="
                       bg-[#3B82F6]
                       text-white
@@ -2165,11 +2062,9 @@ export default function App() {
                       text-[10px]
                       font-black
                     ">
-                      ★
-                      {' '}
-                      {details?.vote_average?.toFixed(
-                        1
-                      ) || '0.0'}
+                      ★{' '}
+                      {details?.vote_average?.toFixed(1) ||
+                        '0.0'}
                     </span>
 
                     <span className="
@@ -2230,7 +2125,6 @@ export default function App() {
                 mt-1
                 space-y-7
               ">
-
                 {/* ACTIONS */}
 
                 <div className="
@@ -2238,7 +2132,6 @@ export default function App() {
                   grid-cols-[1fr_auto]
                   gap-2
                 ">
-
                   <button
                     onClick={() =>
                       handlePlayTrailer(
@@ -2261,7 +2154,7 @@ export default function App() {
                       shadow-[#3B82F6]/20
                     "
                   >
-                    ▶
+                    ▶{' '}
                     {lang === 'ar-SA'
                       ? 'شاهد التريلر'
                       : 'Watch Trailer'}
@@ -2285,9 +2178,7 @@ export default function App() {
                       text-lg
                     "
                   >
-                    {isInMyList(
-                      details?.id
-                    )
+                    {isInMyList(details?.id)
                       ? '✓'
                       : '＋'}
                   </button>
@@ -2296,7 +2187,6 @@ export default function App() {
                 {/* OVERVIEW */}
 
                 <div className="space-y-3">
-
                   <SectionTitle
                     title={
                       lang === 'ar-SA'
@@ -2320,12 +2210,9 @@ export default function App() {
 
                 {/* SEASONS */}
 
-                {selectedItemType ===
-                  'tv' &&
-                  details?.seasons
-                    ?.length > 0 && (
+                {selectedItemType === 'tv' &&
+                  details?.seasons?.length > 0 && (
                     <div className="space-y-4">
-
                       <SectionTitle
                         title={
                           lang === 'ar-SA'
@@ -2344,8 +2231,7 @@ export default function App() {
                         {details.seasons
                           .filter(
                             (s) =>
-                              s.season_number >
-                              0
+                              s.season_number > 0
                           )
                           .map((s) => (
                             <button
@@ -2391,7 +2277,6 @@ export default function App() {
                         </div>
                       ) : (
                         <div className="space-y-2">
-
                           {seasonDetails?.episodes?.map(
                             (ep) => (
                               <div
@@ -2406,16 +2291,13 @@ export default function App() {
                                   border-[#1E293B]
                                 "
                               >
-
                                 <img
                                   src={
                                     ep.still_path
                                       ? `${IMAGE_BASE_URL}${ep.still_path}`
                                       : 'https://via.placeholder.com/100x60?text=EP'
                                   }
-                                  alt={
-                                    ep.name
-                                  }
+                                  alt={ep.name}
                                   className="
                                     w-20
                                     h-12
@@ -2432,15 +2314,13 @@ export default function App() {
                                   flex-col
                                   justify-center
                                 ">
-
                                   <h4 className="
                                     text-[10px]
                                     font-bold
                                     text-white
                                     truncate
                                   ">
-                                    {ep.episode_number}.
-                                    {' '}
+                                    {ep.episode_number}.{' '}
                                     {ep.name}
                                   </h4>
 
@@ -2480,10 +2360,8 @@ export default function App() {
 
                 {/* CAST */}
 
-                {details?.credits
-                  ?.cast?.length > 0 && (
+                {details?.credits?.cast?.length > 0 && (
                   <div className="space-y-4">
-
                     <SectionTitle
                       title={
                         lang === 'ar-SA'
@@ -2510,7 +2388,6 @@ export default function App() {
                               text-center
                             "
                           >
-
                             <div className="
                               w-16
                               h-16
@@ -2527,9 +2404,7 @@ export default function App() {
                                     ? `${IMAGE_BASE_URL}${actor.profile_path}`
                                     : 'https://via.placeholder.com/100?text=Actor'
                                 }
-                                alt={
-                                  actor.name
-                                }
+                                alt={actor.name}
                                 className="
                                   w-full
                                   h-full
@@ -2556,7 +2431,6 @@ export default function App() {
                 {/* SIMILAR / RECOMMENDATIONS */}
 
                 <div className="space-y-4">
-
                   <div className="
                     flex
                     items-center
@@ -2564,20 +2438,16 @@ export default function App() {
                     border-b
                     border-[#1E293B]
                   ">
-
                     <button
                       onClick={() =>
-                        setActiveDetailTab(
-                          'similar'
-                        )
+                        setActiveDetailTab('similar')
                       }
                       className={`
                         pb-3
                         text-[11px]
                         font-bold
                         ${
-                          activeDetailTab ===
-                          'similar'
+                          activeDetailTab === 'similar'
                             ? 'text-[#3B82F6] border-b-2 border-[#3B82F6]'
                             : 'text-[#64748B]'
                         }
@@ -2619,13 +2489,9 @@ export default function App() {
                   ">
                     {(
                       (
-                        activeDetailTab ===
-                        'similar'
-                          ? details?.similar
-                              ?.results
-                          : details
-                              ?.recommendations
-                              ?.results
+                        activeDetailTab === 'similar'
+                          ? details?.similar?.results
+                          : details?.recommendations?.results
                       ) || []
                     )
                       .slice(0, 6)
@@ -2633,9 +2499,7 @@ export default function App() {
                         <MovieCard
                           key={item.id}
                           item={item}
-                          genresMap={
-                            genresMap
-                          }
+                          genresMap={genresMap}
                           onClick={() =>
                             handleOpenDetails(
                               item,
@@ -2668,7 +2532,6 @@ export default function App() {
           p-3
           backdrop-blur-md
         ">
-
           <div className="
             relative
             w-full
@@ -2680,7 +2543,6 @@ export default function App() {
             border-[#1E293B]
             shadow-2xl
           ">
-
             <button
               onClick={() =>
                 setTrailerKey(null)
@@ -2720,7 +2582,6 @@ export default function App() {
   );
 }
 
-
 /* =========================================================
    SECTION TITLE
 ========================================================= */
@@ -2749,14 +2610,11 @@ function SectionTitle({
         font-black
         text-white
       ">
-        {icon}
-        {' '}
-        {title}
+        {icon} {title}
       </span>
     </div>
   );
 }
-
 
 /* =========================================================
    HORIZONTAL SECTION
@@ -2774,13 +2632,11 @@ function HorizontalSection({
 }) {
   return (
     <div className="space-y-3">
-
       <div className="
         flex
         items-center
         justify-between
       ">
-
         <SectionTitle
           title={title}
           icon={icon}
@@ -2857,7 +2713,6 @@ function HorizontalSection({
   );
 }
 
-
 /* =========================================================
    MOVIE CARD
 ========================================================= */
@@ -2877,7 +2732,6 @@ function MovieCard({
         transition
       "
     >
-
       <div className="
         relative
         aspect-[2/3]
@@ -2889,7 +2743,6 @@ function MovieCard({
         shadow-lg
         shadow-black/20
       ">
-
         {item.poster_path ? (
           <img
             src={`${IMAGE_BASE_URL}${item.poster_path}`}
@@ -2921,8 +2774,6 @@ function MovieCard({
           </div>
         )}
 
-        {/* Gradient */}
-
         <div className="
           absolute
           inset-x-0
@@ -2932,8 +2783,6 @@ function MovieCard({
           from-black/80
           to-transparent
         " />
-
-        {/* Rating */}
 
         <div className="
           absolute
@@ -2953,17 +2802,13 @@ function MovieCard({
           items-center
           gap-1
         ">
-          <span className="
-            text-[#60A5FA]
-          ">
+          <span className="text-[#60A5FA]">
             ★
           </span>
 
           <span>
             {item.vote_average
-              ? item.vote_average.toFixed(
-                  1
-                )
+              ? item.vote_average.toFixed(1)
               : '7.5'}
           </span>
         </div>
@@ -2973,7 +2818,6 @@ function MovieCard({
         px-0.5
         pt-2
       ">
-
         <h4 className="
           text-[11px]
           font-bold
@@ -2990,7 +2834,6 @@ function MovieCard({
           justify-between
           mt-1
         ">
-
           <p className="
             text-[9px]
             text-[#64748B]
@@ -3017,7 +2860,6 @@ function MovieCard({
     </div>
   );
 }
-
 
 /* =========================================================
    NAV ITEM
@@ -3051,7 +2893,6 @@ function NavItem({
         }
       `}
     >
-
       {active && (
         <div className="
           absolute
@@ -3080,4 +2921,4 @@ function NavItem({
       </span>
     </button>
   );
-                                                         }
+    }
