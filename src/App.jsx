@@ -15,49 +15,49 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// قائمة السيرفرات المحدثة المطابقة للترجمة التلقائية وجودة العرض
+// قائمة السيرفرات المحدثة بالكامل ببدائل مستقرة ومجربة بدون حظر HTTP
 const WATCH_SERVERS = [
   { 
-    id: 'nova_stream', 
-    name: 'NovaStream (ترجمة + جودة)', 
-    getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://player.smashy.stream/tv/${id}?s=${s}&e=${e}` 
-      : `https://player.smashy.stream/movie/${id}` 
-  },
-  { 
-    id: 'flux_stream', 
-    name: 'FluxStream (سريع جداً)', 
+    id: 'vidsrc_cc', 
+    name: 'VidSrc (سريع جداً + ترجمة)', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` 
       : `https://vidsrc.cc/v2/embed/movie/${id}` 
   },
   { 
-    id: 'pulse_stream', 
-    name: 'PulseStream (جودة متعددة)', 
+    id: 'embed_su', 
+    name: 'EmbedSU (جودة عالية HD/4K)', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://embed.su/embed/tv/${id}/${s}/${e}` 
       : `https://embed.su/embed/movie/${id}` 
   },
   { 
-    id: 'hunt_stream', 
-    name: 'HuntStream (تلقائي)', 
+    id: 'autoembed', 
+    name: 'AutoEmbed (تلقائي بدون إعلانات)', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://autoembed.co/tv/tmdb/${id}-${s}-${e}` 
-      : `https://autoembed.co/movie/tmdb/${id}` 
+      ? `https://player.autoembed.cc/tv/${id}/${s}/${e}` 
+      : `https://player.autoembed.cc/movie/${id}` 
   },
   { 
-    id: 'luma_stream', 
-    name: 'LumaStream (VIP)', 
+    id: 'vidlink', 
+    name: 'VidLink (سيرفر احتياطي)', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidsrc.pro/embed/tv/${id}/${s}/${e}` 
-      : `https://vidsrc.pro/embed/movie/${id}` 
+      ? `https://vidlink.pro/tv/${id}/${s}/${e}` 
+      : `https://vidlink.pro/movie/${id}` 
   },
   { 
-    id: 'zet_stream', 
-    name: 'ZetStream (4K/HD)', 
+    id: 'vidsrc_xyz', 
+    name: 'VidSrc.xyz (VIP)', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}` 
-      : `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` 
+      ? `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
+      : `https://vidsrc.xyz/embed/movie?tmdb=${id}` 
+  },
+  { 
+    id: '2embed_cc', 
+    name: '2Embed (متعدد الجودات)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` 
+      : `https://www.2embed.cc/embed/${id}` 
   }
 ];
 
@@ -110,7 +110,7 @@ export default function App() {
   const [activeServer, setActiveServer] = useState(WATCH_SERVERS[0]);
   const [selectedEpisodeNumber, setSelectedEpisodeNumber] = useState(1);
   const [isWatching, setIsWatching] = useState(false);
-  const [showServerModal, setShowServerModal] = useState(false); // حالة النافذة المنبثقة للسيرفرات
+  const [showServerModal, setShowServerModal] = useState(false);
 
   const searchTimer = useRef(null);
 
