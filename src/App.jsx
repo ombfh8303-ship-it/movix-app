@@ -15,7 +15,7 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// سيرفرات المشاهدة المحدثة والمطلوبة بالكامل
+// سيرفرات المشاهدة المحدثة
 const WATCH_SERVERS = [
   { 
     id: 'novastream', 
@@ -88,8 +88,14 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [myList, setMyList] = useState(() => { try { return JSON.parse(localStorage.getItem('movix_my_list')) || [] } catch { return [] } });
-  const [watchHistory, setWatchHistory] = useState(() => { try { return JSON.parse(localStorage.getItem('movix_watch_history')) || [] } catch { return [] } });
+  
+  const [myList, setMyList] = useState(() => { 
+    try { return JSON.parse(localStorage.getItem('movix_my_list')) || []; } catch { return []; } 
+  });
+  const [watchHistory, setWatchHistory] = useState(() => { 
+    try { return JSON.parse(localStorage.getItem('movix_watch_history')) || []; } catch { return []; } 
+  });
+
   const [trendingList, setTrendingList] = useState([]);
   const [latestMoviesList, setLatestMoviesList] = useState([]);
   const [topRatedList, setTopRatedList] = useState([]);
@@ -100,14 +106,17 @@ export default function App() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [genres, setGenres] = useState([]);
+  
   const [selectedGenre, setSelectedGenre] = useState('');
   const [selectedStudio, setSelectedStudio] = useState(null);
   const [minRating, setMinRating] = useState(0);
   const [selectedYear, setSelectedYear] = useState('');
+  
   const [tempGenre, setTempGenre] = useState('');
   const [tempMinRating, setTempMinRating] = useState(0);
   const [tempSelectedYear, setTempSelectedYear] = useState('');
   const [showFilterModal, setShowFilterModal] = useState(false);
+
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedItemType, setSelectedItemType] = useState('movie');
   const [details, setDetails] = useState(null);
@@ -125,8 +134,8 @@ export default function App() {
 
   const searchTimer = useRef(null);
 
-  useEffect(() => { try { localStorage.setItem('movix_my_list', JSON.stringify(myList)) } catch { } }, [myList]);
-  useEffect(() => { try { localStorage.setItem('movix_watch_history', JSON.stringify(watchHistory)) } catch { } }, [watchHistory]);
+  useEffect(() => { try { localStorage.setItem('movix_my_list', JSON.stringify(myList)); } catch { } }, [myList]);
+  useEffect(() => { try { localStorage.setItem('movix_watch_history', JSON.stringify(watchHistory)); } catch { } }, [watchHistory]);
 
   const resetFilters = useCallback(() => {
     setSelectedGenre(''); setSelectedStudio(null); setSearchQuery('');
@@ -155,7 +164,7 @@ export default function App() {
       }).catch(() => setLoading(false));
 
       STUDIOS.forEach(s => {
-        const type = s.id === 213 || s.id === 49 ? 'tv' : 'movie';
+        const type = (s.id === 213 || s.id === 49) ? 'tv' : 'movie';
         fetchByStudio(type, s.id, 1, lang).then(r => {
           setStudioMoviesMap(p => ({ ...p, [s.id]: r?.results || [] }));
         }).catch(() => { });
@@ -176,7 +185,7 @@ export default function App() {
     if (query.trim()) promise = searchMedia(query, type, pageNum, lang);
     else if (selectedGenre) promise = fetchByGenre(type, selectedGenre, pageNum, lang);
     else if (selectedStudio) {
-      const st = selectedStudio.id === 213 || selectedStudio.id === 49 ? 'tv' : type;
+      const st = (selectedStudio.id === 213 || selectedStudio.id === 49) ? 'tv' : type;
       promise = fetchByStudio(st, selectedStudio.id, pageNum, lang);
     } else promise = fetchTrending(type, pageNum, lang);
 
@@ -189,7 +198,7 @@ export default function App() {
       });
       setGridItems(p => append ? [...p, ...results] : results);
       setTotalPages(data?.total_pages || 1);
-    }).catch(() => { }).finally(() => { setLoading(false); setLoadingMore(false) });
+    }).catch(() => { }).finally(() => { setLoading(false); setLoadingMore(false); });
   }, [activeTab, selectedGenre, selectedStudio, minRating, selectedYear, lang, searchQuery]);
 
   const handleSearchChange = e => {
@@ -229,7 +238,7 @@ export default function App() {
   const clearWatchHistory = useCallback(() => setWatchHistory([]), []);
 
   useEffect(() => {
-    if (!selectedItem) { setDetails(null); setIsWatching(false); return }
+    if (!selectedItem) { setDetails(null); setIsWatching(false); return; }
     setOverviewExpanded(false); setDetailsLoading(true); setIsWatching(false);
     fetchDetails(selectedItemType, selectedItem.id, lang).then(data => {
       setDetails(data);
@@ -271,7 +280,7 @@ export default function App() {
       } else alert(lang === 'ar-SA' ? 'الإعلان الرسمي غير متوفر حالياً' : 'Official trailer is not available');
     } catch {
       alert(lang === 'ar-SA' ? 'حدث خطأ أثناء تحميل التريلر' : 'Error loading trailer');
-    } finally { setTrailerLoading(false) }
+    } finally { setTrailerLoading(false); }
   }, [details, selectedItemType, lang, getRealTrailer, addToWatchHistory]);
 
   const handleStartWatching = useCallback((epNum = 1) => {
@@ -302,82 +311,123 @@ export default function App() {
   const featuredItem = trendingList[heroIndex] || trendingList[0];
   const isHome = activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear;
 
-  const currentEmbedUrl = activeServer.getUrl(details?.id, selectedItemType, selectedSeasonNumber, selectedEpisodeNumber);
+  const currentEmbedUrl = details ? activeServer.getUrl(details.id, selectedItemType, selectedSeasonNumber, selectedEpisodeNumber) : '';
 
   return (
     <div className="min-h-screen bg-[#05070A] text-[#F8FAFC] pb-24 font-sans max-w-md mx-auto relative select-none" dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}>
 
+      {/* الهيدر علوي */}
       <header className="px-4 pt-5 pb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setActiveTab('home'); resetFilters() }}>
-          <div className="w-9 h-9 rounded-xl bg-[#3B82F6] flex items-center justify-center text-white text-sm font-black">▶</div>
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setActiveTab('home'); resetFilters(); }}>
+          <div className="w-9 h-9 rounded-xl bg-[#3B82F6] flex items-center justify-center text-white text-sm font-black shadow-lg shadow-[#3B82F6]/30">▶</div>
           <div className="leading-none">
             <span className="text-[19px] font-black tracking-[0.08em] text-white">MOV<span className="text-[#3B82F6]">IX</span></span>
             <p className="text-[7px] text-[#64748B] tracking-[0.22em] mt-1 uppercase">Movie Streaming</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setLang(p => p === 'ar-SA' ? 'en-US' : 'ar-SA')} className="h-9 px-3 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#CBD5E1] text-[10px] font-bold flex items-center gap-1.5">🌐 {lang === 'ar-SA' ? 'EN' : 'العربية'}</button>
-          <button onClick={() => { setTempGenre(selectedGenre); setTempMinRating(minRating); setTempSelectedYear(selectedYear); setShowFilterModal(true) }} className="w-9 h-9 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#CBD5E1] flex items-center justify-center">⚙</button>
+          <button onClick={() => setLang(p => p === 'ar-SA' ? 'en-US' : 'ar-SA')} className="h-9 px-3 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#CBD5E1] text-[10px] font-bold flex items-center gap-1.5 active:scale-95 transition-transform">
+            🌐 {lang === 'ar-SA' ? 'EN' : 'العربية'}
+          </button>
+          <button onClick={() => { setTempGenre(selectedGenre); setTempMinRating(minRating); setTempSelectedYear(selectedYear); setShowFilterModal(true); }} className="w-9 h-9 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#CBD5E1] flex items-center justify-center active:scale-95 transition-transform">
+            ⚙
+          </button>
         </div>
       </header>
 
+      {/* شريط البحث */}
       <div className="px-4 pt-3">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 w-10 flex items-center justify-center pointer-events-none text-[#64748B]">🔍</div>
-          <input value={searchQuery} onChange={handleSearchChange} placeholder={lang === 'ar-SA' ? 'ابحث عن فيلم، مسلسل، ممثل...' : 'Search movies, series, actors...'} className="w-full h-12 bg-[#0F172A] text-white placeholder-[#64748B] border border-[#1E293B] focus:border-[#3B82F6] px-4 rounded-2xl text-xs outline-none pl-10" />
+          <input value={searchQuery} onChange={handleSearchChange} placeholder={lang === 'ar-SA' ? 'ابحث عن فيلم، مسلسل، ممثل...' : 'Search movies, series, actors...'} className="w-full h-12 bg-[#0F172A] text-white placeholder-[#64748B] border border-[#1E293B] focus:border-[#3B82F6] px-4 rounded-2xl text-xs outline-none pl-10 transition-all" />
         </div>
       </div>
 
       <main className="px-4 pt-5 space-y-8">
 
-        {isHome && genres.length > 0 && <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">{genres.slice(0, 8).map(g => <button key={g.id} onClick={() => { setSelectedGenre(g.id); setActiveTab('movies') }} className="flex-shrink-0 px-4 py-2 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#94A3B8] text-[10px] font-bold">{g.name}</button>)}</div>}
+        {/* التصنيفات السريعة */}
+        {isHome && genres.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
+            {genres.slice(0, 10).map(g => (
+              <button key={g.id} onClick={() => { setSelectedGenre(g.id); setActiveTab('movies'); }} className="flex-shrink-0 px-4 py-2 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#94A3B8] text-[10px] font-bold active:scale-95 transition-all">
+                {g.name}
+              </button>
+            ))}
+          </div>
+        )}
 
+        {/* البانر الرئيسي المميز */}
         {isHome && (loading ? <div className="h-[390px] bg-[#111827] rounded-[28px] animate-pulse" /> : featuredItem &&
-          <div className="relative overflow-hidden rounded-[28px] bg-[#111827] border border-[#1E293B]">
+          <div className="relative overflow-hidden rounded-[28px] bg-[#111827] border border-[#1E293B] shadow-2xl">
             <div className="relative h-[390px] w-full">
               <img src={`${BACKDROP_BASE_URL}${featuredItem.backdrop_path || featuredItem.poster_path}`} alt={featuredItem.title || featuredItem.name} className="w-full h-full object-cover" loading="eager" />
               <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(to top,#05070A 0%,rgba(5,7,10,.55) 50%,rgba(5,7,10,.10) 100%)' }} />
               <div className="absolute bottom-5 inset-x-5 space-y-3">
-                <div className="flex items-center gap-2"><span className="bg-[#3B82F6] text-white px-2.5 py-1 rounded-full text-[9px] font-black">{featuredItem.genre_ids?.length ? genresMap[featuredItem.genre_ids[0]] || 'مميز' : 'مميز'}</span><span className="text-[9px] text-[#CBD5E1] bg-black/30 border border-white/10 px-2 py-1 rounded-full">جديد</span></div>
-                <h1 className="text-[28px] font-black text-white leading-tight truncate">{featuredItem.title || featuredItem.name}</h1>
-                <div className="flex items-center gap-2 text-[10px] text-[#CBD5E1]"><span className="text-[#60A5FA] font-bold">★ {featuredItem.vote_average?.toFixed(1) || '7.8'}</span><span>•</span><span>{featuredItem.release_date?.substring(0, 4) || featuredItem.first_air_date?.substring(0, 4) || '2026'}</span><span>•</span><span>HD</span></div>
-                <div className="grid grid-cols-[1.35fr_1fr] gap-2 pt-1">
-                  <button onClick={() => handleOpenDetails(featuredItem, 'movie')} className="h-11 bg-[#3B82F6] text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2">▶ {lang === 'ar-SA' ? 'شاهد الآن' : 'Watch Now'}</button>
-                  <button onClick={() => toggleMyList(featuredItem, 'movie')} className="h-11 bg-[#0F172A] border border-white/10 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2">{isInMyList(featuredItem.id) ? '✓' : '＋'} {isInMyList(featuredItem.id) ? (lang === 'ar-SA' ? 'في قائمتي' : 'In List') : (lang === 'ar-SA' ? 'قائمتي' : 'My List')}</button>
+                <div className="flex items-center gap-2">
+                  <span className="bg-[#3B82F6] text-white px-2.5 py-1 rounded-full text-[9px] font-black">{featuredItem.genre_ids?.length ? genresMap[featuredItem.genre_ids[0]] || 'مميز' : 'مميز'}</span>
+                  <span className="text-[9px] text-[#CBD5E1] bg-black/30 border border-white/10 px-2 py-1 rounded-full backdrop-blur-md">جديد</span>
                 </div>
-                <div className="flex justify-center gap-1.5 pt-1">{trendingList.slice(0, 5).map((_, i) => <button key={i} onClick={() => setHeroIndex(i)} className={`h-1.5 rounded-full ${heroIndex === i ? 'w-6 bg-[#3B82F6]' : 'w-1.5 bg-[#64748B]/60'}`} />)}</div>
+                <h1 className="text-[28px] font-black text-white leading-tight truncate">{featuredItem.title || featuredItem.name}</h1>
+                <div className="flex items-center gap-2 text-[10px] text-[#CBD5E1]">
+                  <span className="text-[#60A5FA] font-bold">★ {featuredItem.vote_average?.toFixed(1) || '7.8'}</span>
+                  <span>•</span>
+                  <span>{featuredItem.release_date?.substring(0, 4) || featuredItem.first_air_date?.substring(0, 4) || '2026'}</span>
+                  <span>•</span>
+                  <span className="border border-white/20 px-1 rounded text-[8px]">HD</span>
+                </div>
+                <div className="grid grid-cols-[1.35fr_1fr] gap-2 pt-1">
+                  <button onClick={() => handleOpenDetails(featuredItem, 'movie')} className="h-11 bg-[#3B82F6] active:bg-[#2563EB] text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-[#3B82F6]/25 transition-all">
+                    ▶ {lang === 'ar-SA' ? 'شاهد الآن' : 'Watch Now'}
+                  </button>
+                  <button onClick={() => toggleMyList(featuredItem, 'movie')} className="h-11 bg-[#0F172A] border border-white/10 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 active:scale-95 transition-all">
+                    {isInMyList(featuredItem.id) ? '✓' : '＋'} {isInMyList(featuredItem.id) ? (lang === 'ar-SA' ? 'في قائمتي' : 'In List') : (lang === 'ar-SA' ? 'قائمتي' : 'My List')}
+                  </button>
+                </div>
+                <div className="flex justify-center gap-1.5 pt-1">
+                  {trendingList.slice(0, 5).map((_, i) => (
+                    <button key={i} onClick={() => setHeroIndex(i)} className={`h-1.5 rounded-full transition-all ${heroIndex === i ? 'w-6 bg-[#3B82F6]' : 'w-1.5 bg-[#64748B]/60'}`} />
+                  ))}
+                </div>
               </div>
             </div>
           </div>)}
 
+        {/* أقسام الصفحة الرئيسية */}
         {isHome && <div className="space-y-8">
           <HorizontalSection title={lang === 'ar-SA' ? 'الأكثر رواجاً' : 'Trending Now'} icon="🔥" items={trendingList} loading={loading} onItemClick={x => handleOpenDetails(x, 'movie')} onViewAll={() => setActiveTab('movies')} lang={lang} />
           <HorizontalSection title={lang === 'ar-SA' ? 'أحدث الأفلام' : 'Latest Movies'} icon="✦" items={latestMoviesList} loading={loading} onItemClick={x => handleOpenDetails(x, 'movie')} onViewAll={() => setActiveTab('movies')} lang={lang} />
           <HorizontalSection title={lang === 'ar-SA' ? 'الأعلى تقييماً' : 'Top Rated'} icon="★" items={topRatedList} loading={loading} onItemClick={x => handleOpenDetails(x, 'movie')} onViewAll={() => setActiveTab('movies')} lang={lang} />
           <HorizontalSection title={lang === 'ar-SA' ? 'المسلسلات الرائجة' : 'Popular TV'} icon="▣" items={trendingTvList} loading={loading} onItemClick={x => handleOpenDetails(x, 'tv')} onViewAll={() => setActiveTab('tv')} lang={lang} />
 
+          {/* شركات الإنتاج */}
           <div className="pt-5 border-t border-[#1E293B] space-y-8">
-            <SectionTitle title={lang === 'ar-SA' ? 'شركات الإنتاج' : 'Production Studios'} icon="▣" />
+            <SectionTitle title={lang === 'ar-SA' ? 'شركات الإنتاج' : 'Production Studios'} icon="🏢" />
             {STUDIOS.map(s => {
               const items = studioMoviesMap[s.id] || [];
               if (!items.length && !loading) return null;
-              const type = s.id === 213 || s.id === 49 ? 'tv' : 'movie';
-              return <HorizontalSection key={s.id} title={s.name} icon="•" items={items} loading={loading} onItemClick={x => handleOpenDetails(x, type)} onViewAll={() => { setSelectedStudio(s); setActiveTab(type === 'tv' ? 'tv' : 'movies') }} lang={lang} />
+              const type = (s.id === 213 || s.id === 49) ? 'tv' : 'movie';
+              return <HorizontalSection key={s.id} title={s.name} icon="•" items={items} loading={loading} onItemClick={x => handleOpenDetails(x, type)} onViewAll={() => { setSelectedStudio(s); setActiveTab(type === 'tv' ? 'tv' : 'movies'); }} lang={lang} />;
             })}
           </div>
         </div>}
 
+        {/* تبويب سجل المشاهدة */}
         {activeTab === 'history' && <div className="space-y-5">
-          <div className="flex items-center justify-between"><SectionTitle title={lang === 'ar-SA' ? 'سجل المشاهدة' : 'Watch History'} icon="◷" />{watchHistory.length > 0 && <button onClick={clearWatchHistory} className="text-[9px] text-[#94A3B8] bg-[#0F172A] border border-[#1E293B] px-3 py-1.5 rounded-full">{lang === 'ar-SA' ? 'مسح السجل' : 'Clear'}</button>}</div>
+          <div className="flex items-center justify-between">
+            <SectionTitle title={lang === 'ar-SA' ? 'سجل المشاهدة' : 'Watch History'} icon="◷" />
+            {watchHistory.length > 0 && <button onClick={clearWatchHistory} className="text-[9px] text-[#94A3B8] bg-[#0F172A] border border-[#1E293B] px-3 py-1.5 rounded-full hover:bg-red-500/20 hover:text-red-400 transition-colors">{lang === 'ar-SA' ? 'مسح السجل' : 'Clear'}</button>}
+          </div>
           {!watchHistory.length ? <div className="py-20 text-center text-[#64748B]"><div className="w-16 h-16 mx-auto rounded-2xl bg-[#0F172A] border border-[#1E293B] flex items-center justify-center text-2xl mb-4">◷</div><p className="text-xs">{lang === 'ar-SA' ? 'لا يوجد شيء في سجل المشاهدة بعد.' : 'Your watch history is empty.'}</p></div> :
-            <div className="grid grid-cols-3 gap-3">{watchHistory.map(item => <div key={`${item.media_type}-${item.id}`} className="relative"><MovieCard item={item} onClick={() => handleOpenDetails(item, item.media_type || 'movie')} /><button onClick={e => { e.stopPropagation(); removeFromWatchHistory(item) }} className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/75 border border-white/10 text-white text-[10px] z-10">✕</button></div>)}</div>}
+            <div className="grid grid-cols-3 gap-3">{watchHistory.map(item => <div key={`${item.media_type}-${item.id}`} className="relative"><MovieCard item={item} onClick={() => handleOpenDetails(item, item.media_type || 'movie')} /><button onClick={e => { e.stopPropagation(); removeFromWatchHistory(item); }} className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/75 border border-white/10 text-white text-[10px] z-10 flex items-center justify-center">✕</button></div>)}</div>}
         </div>}
 
+        {/* تبويب قائمتي */}
         {activeTab === 'mylist' && !searchQuery && <div className="space-y-5">
           <SectionTitle title={lang === 'ar-SA' ? 'قائمتي' : 'My List'} icon="♥" />
           {!myList.length ? <div className="text-center py-20 text-[#64748B]"><div className="w-16 h-16 mx-auto rounded-2xl bg-[#0F172A] border border-[#1E293B] flex items-center justify-center text-2xl mb-4">♡</div><p className="text-xs">{lang === 'ar-SA' ? 'لم تقم بإضافة أي أعمال لقائمتك بعد.' : 'No items in your list yet.'}</p></div> : <div className="grid grid-cols-3 gap-3">{myList.map(item => <MovieCard key={item.id} item={item} onClick={() => handleOpenDetails(item, item.media_type || 'movie')} />)}</div>}
         </div>}
 
+        {/* شبكة الأعمال (Grid Results) */}
         {(activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio || minRating > 0 || selectedYear) && activeTab !== 'mylist' && activeTab !== 'history' &&
           <div className="space-y-5">
             <div className="flex items-end justify-between gap-3">
@@ -387,30 +437,30 @@ export default function App() {
             {loading ? <div className="grid grid-cols-3 gap-3">{Array.from({ length: 9 }).map((_, i) => <div key={i} className="aspect-[2/3] bg-[#111827] rounded-2xl animate-pulse" />)}</div> : !gridItems.length ? <div className="text-center py-20 text-[#64748B] text-xs">{lang === 'ar-SA' ? 'لم يتم العثور على نتائج.' : 'No results found.'}</div> :
               <>
                 <div className="grid grid-cols-3 gap-3">{gridItems.map(item => <MovieCard key={item.id} item={item} onClick={() => handleOpenDetails(item, activeTab === 'tv' ? 'tv' : 'movie')} />)}</div>
-                {page < totalPages && <button onClick={handleLoadMore} disabled={loadingMore} className="w-full h-12 bg-[#0F172A] border border-[#1E293B] text-[#60A5FA] font-bold rounded-2xl text-xs">{loadingMore ? (lang === 'ar-SA' ? 'جاري التحميل...' : 'Loading...') : (lang === 'ar-SA' ? 'تحميل المزيد' : 'Load More')}</button>}
+                {page < totalPages && <button onClick={handleLoadMore} disabled={loadingMore} className="w-full h-12 bg-[#0F172A] border border-[#1E293B] text-[#60A5FA] font-bold rounded-2xl text-xs active:scale-95 transition-transform">{loadingMore ? (lang === 'ar-SA' ? 'جاري التحميل...' : 'Loading...') : (lang === 'ar-SA' ? 'تحميل المزيد' : 'Load More')}</button>}
               </>}
           </div>}
       </main>
 
-      {/* Navigation Bar */}
+      {/* شريط التنقل السفلي Navigation Bar */}
       <div className="fixed bottom-3 inset-x-3 mx-auto max-w-md z-40">
-        <nav className="h-[70px] bg-[#0B1220] border border-[#1E293B] rounded-[24px] flex items-center justify-around px-2 shadow-xl shadow-black/40">
-          <NavItem icon="home" label={lang === 'ar-SA' ? 'الرئيسية' : 'Home'} active={activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear} onClick={() => { setActiveTab('home'); resetFilters() }} />
-          <NavItem icon="movie" label={lang === 'ar-SA' ? 'الأفلام' : 'Movies'} active={activeTab === 'movies' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear} onClick={() => { setActiveTab('movies'); resetFilters() }} />
-          <NavItem icon="tv" label={lang === 'ar-SA' ? 'المسلسلات' : 'Series'} active={activeTab === 'tv' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear} onClick={() => { setActiveTab('tv'); resetFilters() }} />
-          <NavItem icon="history" label={lang === 'ar-SA' ? 'السجل' : 'History'} active={activeTab === 'history'} onClick={() => { setActiveTab('history'); resetFilters() }} />
-          <NavItem icon="heart" label={lang === 'ar-SA' ? 'قائمتي' : 'My List'} active={activeTab === 'mylist'} onClick={() => { setActiveTab('mylist'); resetFilters() }} />
+        <nav className="h-[70px] bg-[#0B1220]/90 backdrop-blur-xl border border-[#1E293B] rounded-[24px] flex items-center justify-around px-2 shadow-2xl shadow-black">
+          <NavItem icon="home" label={lang === 'ar-SA' ? 'الرئيسية' : 'Home'} active={activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear} onClick={() => { setActiveTab('home'); resetFilters(); }} />
+          <NavItem icon="movie" label={lang === 'ar-SA' ? 'الأفلام' : 'Movies'} active={activeTab === 'movies' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear} onClick={() => { setActiveTab('movies'); resetFilters(); }} />
+          <NavItem icon="tv" label={lang === 'ar-SA' ? 'المسلسلات' : 'Series'} active={activeTab === 'tv' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear} onClick={() => { setActiveTab('tv'); resetFilters(); }} />
+          <NavItem icon="history" label={lang === 'ar-SA' ? 'السجل' : 'History'} active={activeTab === 'history'} onClick={() => { setActiveTab('history'); resetFilters(); }} />
+          <NavItem icon="heart" label={lang === 'ar-SA' ? 'قائمتي' : 'My List'} active={activeTab === 'mylist'} onClick={() => { setActiveTab('mylist'); resetFilters(); }} />
         </nav>
       </div>
 
-      {/* Filter Modal */}
-      {showFilterModal && <div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center p-3">
-        <div className="bg-[#0F172A] border border-[#1E293B] rounded-[28px] w-full max-w-md p-5 space-y-5 max-h-[85vh] overflow-y-auto">
+      {/* نافذة الفلتر Modal */}
+      {showFilterModal && <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-3 animate-fade-in">
+        <div className="bg-[#0F172A] border border-[#1E293B] rounded-[28px] w-full max-w-md p-5 space-y-5 max-h-[85vh] overflow-y-auto shadow-2xl">
           <div className="flex justify-between items-center"><h3 className="text-base font-black text-white">{lang === 'ar-SA' ? 'تصفية المحتوى' : 'Filter Content'}</h3><button onClick={() => setShowFilterModal(false)} className="w-8 h-8 rounded-full bg-[#111827] text-[#94A3B8]">✕</button></div>
           <div className="space-y-3"><label className="text-[10px] font-bold text-[#94A3B8]">{lang === 'ar-SA' ? 'التصنيف' : 'Genre'}</label>
             <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-              <button onClick={() => setTempGenre('')} className={`py-2 rounded-xl text-[10px] font-bold border ${tempGenre === '' ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#05070A] border-[#1E293B] text-[#94A3B8]'}`}>{lang === 'ar-SA' ? 'الكل' : 'All'}</button>
-              {genres.map(g => <button key={g.id} onClick={() => setTempGenre(g.id)} className={`py-2 px-2 rounded-xl text-[10px] font-bold truncate border ${String(tempGenre) === String(g.id) ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#05070A] border-[#1E293B] text-[#94A3B8]'}`}>{g.name}</button>)}
+              <button onClick={() => setTempGenre('')} className={`py-2 rounded-xl text-[10px] font-bold border transition-all ${tempGenre === '' ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#05070A] border-[#1E293B] text-[#94A3B8]'}`}>{lang === 'ar-SA' ? 'الكل' : 'All'}</button>
+              {genres.map(g => <button key={g.id} onClick={() => setTempGenre(g.id)} className={`py-2 px-2 rounded-xl text-[10px] font-bold truncate border transition-all ${String(tempGenre) === String(g.id) ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#05070A] border-[#1E293B] text-[#94A3B8]'}`}>{g.name}</button>)}
             </div></div>
           <div className="space-y-2"><label className="text-[10px] font-bold text-[#94A3B8] flex justify-between"><span>{lang === 'ar-SA' ? 'الحد الأدنى للتقييم' : 'Minimum Rating'}</span><span className="text-[#60A5FA]">★ {tempMinRating}+</span></label>
             <input type="range" min="0" max="9" step="1" value={tempMinRating} onChange={e => setTempMinRating(Number(e.target.value))} className="w-full accent-[#3B82F6]" /></div>
@@ -419,12 +469,12 @@ export default function App() {
               <option value="">{lang === 'ar-SA' ? 'كل السنين' : 'All Years'}</option>
               {Array.from({ length: 25 }, (_, i) => 2026 - i).map(y => <option key={y} value={y}>{y}</option>)}
             </select></div>
-          <button onClick={() => { setSelectedGenre(tempGenre); setMinRating(tempMinRating); setSelectedYear(tempSelectedYear); setSelectedStudio(null); setSearchQuery(''); setShowFilterModal(false) }} className="w-full h-12 bg-[#3B82F6] text-white font-black rounded-2xl text-xs">{lang === 'ar-SA' ? 'تطبيق الفلتر' : 'Apply Filters'}</button>
+          <button onClick={() => { setSelectedGenre(tempGenre); setMinRating(tempMinRating); setSelectedYear(tempSelectedYear); setSelectedStudio(null); setSearchQuery(''); setShowFilterModal(false); }} className="w-full h-12 bg-[#3B82F6] text-white font-black rounded-2xl text-xs active:scale-95 transition-all">{lang === 'ar-SA' ? 'تطبيق الفلتر' : 'Apply Filters'}</button>
         </div></div>}
 
-      {/* Details Modal / Player Window */}
+      {/* صفحة تفاصيل العمل / المشغل (Player Modal) */}
       {selectedItem && <div className="fixed inset-0 z-50 bg-[#05070A] overflow-y-auto min-h-screen text-[#F8FAFC]">
-        <button onClick={() => setSelectedItem(null)} className="fixed top-4 left-4 z-[60] w-10 h-10 rounded-full bg-black/60 border border-white/10 text-white flex items-center justify-center">✕</button>
+        <button onClick={() => setSelectedItem(null)} className="fixed top-4 right-4 z-[60] w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white flex items-center justify-center">✕</button>
 
         {detailsLoading ? <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-2 border-[#3B82F6] border-t-transparent" /></div> :
           <div className="pb-24">
@@ -459,9 +509,9 @@ export default function App() {
 
             <div className="px-5 mt-4 space-y-7">
               <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
-                <button onClick={() => handleStartWatching(selectedEpisodeNumber)} className="h-12 bg-[#3B82F6] text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2">▶ {lang === 'ar-SA' ? 'مشاهدة الآن' : 'Watch Now'}</button>
-                <button onClick={() => handlePlayTrailer(details, selectedItemType)} disabled={trailerLoading} className="h-12 bg-[#1E293B] text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 disabled:opacity-70">🎬 {trailerLoading ? (lang === 'ar-SA' ? 'جاري...' : 'Loading...') : (lang === 'ar-SA' ? 'التريلر' : 'Trailer')}</button>
-                <button onClick={() => toggleMyList(details, selectedItemType)} className="h-12 w-12 bg-[#111827] border border-[#1E293B] rounded-2xl text-white text-lg flex items-center justify-center">{isInMyList(details?.id) ? '✓' : '＋'}</button>
+                <button onClick={() => handleStartWatching(selectedEpisodeNumber)} className="h-12 bg-[#3B82F6] active:bg-[#2563EB] text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-[#3B82F6]/30 transition-all">▶ {lang === 'ar-SA' ? 'مشاهدة الآن' : 'Watch Now'}</button>
+                <button onClick={() => handlePlayTrailer(details, selectedItemType)} disabled={trailerLoading} className="h-12 bg-[#1E293B] text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 disabled:opacity-70 active:scale-95 transition-all">🎬 {trailerLoading ? (lang === 'ar-SA' ? 'جاري...' : 'Loading...') : (lang === 'ar-SA' ? 'التريلر' : 'Trailer')}</button>
+                <button onClick={() => toggleMyList(details, selectedItemType)} className="h-12 w-12 bg-[#111827] border border-[#1E293B] rounded-2xl text-white text-lg flex items-center justify-center active:scale-95 transition-all">{isInMyList(details?.id) ? '✓' : '＋'}</button>
               </div>
 
               {/* اختيار سيرفر المشاهدة */}
@@ -472,7 +522,7 @@ export default function App() {
                     <button
                       key={srv.id}
                       onClick={() => { setActiveServer(srv); setIsWatching(true); }}
-                      className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-bold border transition-all ${activeServer.id === srv.id ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
+                      className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-bold border transition-all ${activeServer.id === srv.id ? 'bg-[#3B82F6] border-[#3B82F6] text-white shadow-md shadow-[#3B82F6]/30' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
                     >
                       {srv.name}
                     </button>
@@ -491,7 +541,7 @@ export default function App() {
                       <button
                         key={s.id}
                         onClick={() => setSelectedSeasonNumber(s.season_number)}
-                        className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-bold border ${selectedSeasonNumber === s.season_number ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
+                        className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-bold border transition-all ${selectedSeasonNumber === s.season_number ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
                       >
                         {lang === 'ar-SA' ? `الموسم ${s.season_number}` : `Season ${s.season_number}`}
                       </button>
@@ -528,7 +578,7 @@ export default function App() {
                       : `${details.overview.slice(0, 150)}... `
                   ) : (lang === 'ar-SA' ? 'لا يوجد وصف متوفر.' : 'No description available.')}
                   {details?.overview && details.overview.length > 150 && (
-                    <button onClick={() => setOverviewExpanded(!overviewExpanded)} className="text-[#60A5FA] font-bold mr-1">
+                    <button onClick={() => setOverviewExpanded(!overviewExpanded)} className="text-[#60A5FA] font-bold mr-1 inline-block">
                       {overviewExpanded ? (lang === 'ar-SA' ? 'عرض أقل' : 'Show less') : (lang === 'ar-SA' ? 'اقرأ المزيد' : 'Read more')}
                     </button>
                   )}
@@ -540,10 +590,10 @@ export default function App() {
         }
       </div>}
 
-      {/* Modal التريلر */}
+      {/* Modal مشاهدة التريلر على YouTube */}
       {trailerKey && (
-        <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4">
-          <div className="relative w-full max-w-2xl aspect-video bg-black rounded-2xl overflow-hidden border border-[#1E293B]">
+        <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative w-full max-w-2xl aspect-video bg-black rounded-2xl overflow-hidden border border-[#1E293B] shadow-2xl">
             <button onClick={() => setTrailerKey(null)} className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/70 text-white flex items-center justify-center border border-white/10">✕</button>
             <iframe
               src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
@@ -560,7 +610,7 @@ export default function App() {
   );
 }
 
-// المكونات الفرعية مساعد الواجهة (UI Helpers)
+// عناصر واجهة المستخدم المساعدة (UI Helpers)
 function SectionTitle({ title, icon }) {
   return (
     <div className="flex items-center gap-2">
@@ -596,7 +646,7 @@ function MovieCard({ item, onClick }) {
   const rating = item.vote_average ? item.vote_average.toFixed(1) : null;
 
   return (
-    <div onClick={onClick} className="group cursor-pointer space-y-1.5">
+    <div onClick={onClick} className="group cursor-pointer space-y-1.5 active:scale-95 transition-transform duration-150">
       <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-[#0F172A] border border-[#1E293B]">
         {item.poster_path ? (
           <img src={`${IMAGE_BASE_URL}${item.poster_path}`} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
