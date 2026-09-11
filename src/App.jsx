@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+Import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   fetchTrending, fetchTopRated, fetchUpcomingOrPopular, searchMedia,
   fetchDetails, fetchGenres, fetchByGenre, fetchByStudio,
@@ -15,20 +15,28 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
+// قائمة السيرفرات المحدثة بالروابط السليمة
 const WATCH_SERVERS = [
-  { 
-    id: 'vidsrc_icu', 
-    name: 'VidSrc ICU', 
-    getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidsrc.icu/embed/tv/${id}/${s}/${e}` 
-      : `https://vidsrc.icu/embed/movie/${id}` 
-  },
   { 
     id: 'vidsrc_me', 
     name: 'VidSrc Me', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
       : `https://vidsrc.me/embed/movie?tmdb=${id}` 
+  },
+  { 
+    id: 'vidsrc_cc', 
+    name: 'VidSrc CC', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` 
+      : `https://vidsrc.cc/v2/embed/movie/${id}` 
+  },
+  { 
+    id: 'vidsrc_xyz', 
+    name: 'VidSrc XYZ', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
+      : `https://vidsrc.xyz/embed/movie?tmdb=${id}` 
   },
   { 
     id: 'autoembed', 
@@ -38,25 +46,18 @@ const WATCH_SERVERS = [
       : `https://player.autoembed.cc/movie/${id}` 
   },
   { 
+    id: 'embed_su', 
+    name: 'Embed SU', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://embed.su/embed/tv/${id}/${s}/${e}` 
+      : `https://embed.su/embed/movie/${id}` 
+  },
+  { 
     id: 'smashystream', 
     name: 'SmashyStream', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${s}&episode=${e}` 
       : `https://embed.smashystream.com/playere.php?tmdb=${id}` 
-  },
-  { 
-    id: 'multiembed', 
-    name: 'MultiEmbed', 
-    getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}` 
-      : `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` 
-  },
-  { 
-    id: 'vidsrc_pm', 
-    name: 'VidSrc PM', 
-    getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidsrc.pm/embed/tv/${id}/${s}/${e}` 
-      : `https://vidsrc.pm/embed/movie/${id}` 
   },
   { 
     id: '2embed', 
