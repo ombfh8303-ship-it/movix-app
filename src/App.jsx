@@ -15,27 +15,27 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// قائمة سيرفرات المشاهدة المحدثة والآمنة
+// سيرفرات مشغلات محدثة وفعالة
 const WATCH_SERVERS = [
   { 
-    id: 'vidsrc', 
-    name: 'Server 1 (VidSrc.xyz)', 
-    getUrl: (id, type, s, e) => type === 'tv' ? `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}` : `https://vidsrc.xyz/embed/movie?tmdb=${id}` 
+    id: 'vidsrc_icu', 
+    name: 'Server 1 (VidSrc.icu)', 
+    getUrl: (id, type, s, e) => type === 'tv' ? `https://vidsrc.icu/embed/tv/${id}/${s}/${e}` : `https://vidsrc.icu/embed/movie/${id}` 
   },
   { 
-    id: 'vidsrc2', 
+    id: 'vidsrc_me', 
     name: 'Server 2 (VidSrc.me)', 
     getUrl: (id, type, s, e) => type === 'tv' ? `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` : `https://vidsrc.me/embed/movie?tmdb=${id}` 
   },
   { 
-    id: 'embedsu', 
-    name: 'Server 3 (Embed.su)', 
-    getUrl: (id, type, s, e) => type === 'tv' ? `https://embed.su/embed/tv/${id}/${s}/${e}` : `https://embed.su/embed/movie/${id}` 
+    id: 'superembed', 
+    name: 'Server 3 (SuperEmbed)', 
+    getUrl: (id, type, s, e) => type === 'tv' ? `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}` : `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` 
   },
   { 
-    id: '2embed', 
-    name: 'Server 4 (2Embed)', 
-    getUrl: (id, type, s, e) => type === 'tv' ? `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` : `https://www.2embed.cc/embed/${id}` 
+    id: 'autoembed', 
+    name: 'Server 4 (AutoEmbed)', 
+    getUrl: (id, type, s, e) => type === 'tv' ? `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}` : `https://player.autoembed.cc/embed/movie/${id}` 
   }
 ];
 
@@ -76,7 +76,6 @@ export default function App() {
   const [seasonLoading, setSeasonLoading] = useState(false);
   const [overviewExpanded, setOverviewExpanded] = useState(false);
 
-  // حالات سيرفر المشاهدة المشغلة
   const [activeServer, setActiveServer] = useState(WATCH_SERVERS[0]);
   const [selectedEpisodeNumber, setSelectedEpisodeNumber] = useState(1);
   const [isWatching, setIsWatching] = useState(false);
@@ -386,18 +385,24 @@ export default function App() {
 
         {detailsLoading ? <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-2 border-[#3B82F6] border-t-transparent" /></div> :
           <div className="pb-24">
-            {/* مشغل الفيديو المعدل المفتوح وبدون قيود Sandbox */}
+            {/* مشغل الفيديو مع الحمايات المحدثة وخيار الفتح في تبويب جديد */}
             {isWatching ? (
-              <div className="relative w-full aspect-video bg-black">
+              <div className="relative w-full aspect-video bg-black flex flex-col">
                 <iframe
                   key={`${activeServer.id}-${details?.id}-${selectedSeasonNumber}-${selectedEpisodeNumber}`}
                   src={currentEmbedUrl}
                   title="Watch Server"
                   className="w-full h-full border-0"
-                  allow="autoplay; encrypted-media; picture-in-picture"
+                  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                   allowFullScreen
-                  referrerPolicy="origin"
+                  referrerPolicy="no-referrer"
                 />
+                <div className="bg-[#0B1220] p-2 flex justify-between items-center text-[10px] text-[#94A3B8] border-t border-[#1E293B]">
+                  <span>{lang === 'ar-SA' ? 'تواجه مشكلة في المشاهدة؟' : 'Trouble playing?'}</span>
+                  <a href={currentEmbedUrl} target="_blank" rel="noopener noreferrer" className="text-[#60A5FA] font-bold underline">
+                    {lang === 'ar-SA' ? 'فتح السيرفر في نافذة خارجية ↗' : 'Open in new tab ↗'}
+                  </a>
+                </div>
               </div>
             ) : (
               <div className="relative w-full h-[410px] bg-[#05070A]">
@@ -433,7 +438,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* اختيار المواسم والحلقات عند اختيار مسلسل */}
+              {/* اختيار المواسم والحلقات للمسلسلات */}
               {selectedItemType === 'tv' && details?.seasons?.length > 0 && (
                 <div className="space-y-4 pt-2">
                   <SectionTitle title={lang === 'ar-SA' ? 'المواسم والحلقات' : 'Seasons & Episodes'} icon="📺" />
@@ -576,4 +581,4 @@ function HorizontalSection({ title, icon, items, loading, onItemClick, onViewAll
       </div>
     </div>
   );
-             }
+    }
