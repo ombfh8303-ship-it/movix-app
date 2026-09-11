@@ -15,6 +15,14 @@ const STUDIOS=[
 {id:4,name:'Paramount',logo:'https://image.tmdb.org/t/p/w200/420Paramount.png'}
 ];
 
+// قائمة سيرفرات المشاهدة المتاحة
+const WATCH_SERVERS = [
+  { id: 'vidsrc', name: 'Server 1 (VidSrc)', getUrl: (id, type, s, e) => type === 'tv' ? `https://vidsrc.to/embed/tv/${id}/${s}/${e}` : `https://vidsrc.to/embed/movie/${id}` },
+  { id: 'vidsrcpro', name: 'Server 2 (VidSrc Pro)', getUrl: (id, type, s, e) => type === 'tv' ? `https://vidsrc.pro/embed/tv/${id}/${s}/${e}` : `https://vidsrc.pro/embed/movie/${id}` },
+  { id: 'superembed', name: 'Server 3 (SuperEmbed)', getUrl: (id, type, s, e) => type === 'tv' ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` : `https://multiembed.mov/?video_id=${id}&tmdb=1` },
+  { id: 'autoembed', name: 'Server 4 (AutoEmbed)', getUrl: (id, type, s, e) => type === 'tv' ? `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}` : `https://player.autoembed.cc/embed/movie/${id}` }
+];
+
 export default function App(){
 const[activeTab,setActiveTab]=useState('home');
 const[lang,setLang]=useState('ar-SA');
@@ -51,6 +59,12 @@ const[selectedSeasonNumber,setSelectedSeasonNumber]=useState(1);
 const[seasonDetails,setSeasonDetails]=useState(null);
 const[seasonLoading,setSeasonLoading]=useState(false);
 const[overviewExpanded,setOverviewExpanded]=useState(false);
+
+// حالات سيرفر المشاهدة المشغلة
+const[activeServer,setActiveServer]=useState(WATCH_SERVERS[0]);
+const[selectedEpisodeNumber,setSelectedEpisodeNumber]=useState(1);
+const[isWatching,setIsWatching]=useState(false);
+
 const searchTimer=useRef(null);
 
 useEffect(()=>{try{localStorage.setItem('movix_my_list',JSON.stringify(myList))}catch{}},[myList]);
@@ -157,13 +171,14 @@ setWatchHistory(p=>p.filter(i=>!(i.id===item.id&&i.media_type===item.media_type)
 const clearWatchHistory=useCallback(()=>setWatchHistory([]),[]);
 
 useEffect(()=>{
-if(!selectedItem){setDetails(null);return}
-setOverviewExpanded(false);setDetailsLoading(true);
+if(!selectedItem){setDetails(null);setIsWatching(false);return}
+setOverviewExpanded(false);setDetailsLoading(true);setIsWatching(false);
 fetchDetails(selectedItemType,selectedItem.id,lang).then(data=>{
 setDetails(data);
 if(selectedItemType==='tv'&&data?.seasons?.length){
 const first=data.seasons.find(s=>s.season_number>0)||data.seasons[0];
 setSelectedSeasonNumber(first.season_number);
+setSelectedEpisodeNumber(1);
 }
 }).catch(()=>{}).finally(()=>setDetailsLoading(false));
 },[selectedItem,selectedItemType,lang]);
@@ -201,6 +216,13 @@ alert(lang==='ar-SA'?'حدث خطأ أثناء تحميل التريلر':'Error
 }finally{setTrailerLoading(false)}
 },[details,selectedItemType,lang,getRealTrailer,addToWatchHistory]);
 
+const handleStartWatching=useCallback((epNum=1)=>{
+if(!details)return;
+setSelectedEpisodeNumber(epNum);
+setIsWatching(true);
+addToWatchHistory(details,selectedItemType);
+},[details,selectedItemType,addToWatchHistory]);
+
 const toggleMyList=useCallback((item,type='movie')=>{
 if(!item)return;
 setMyList(prev=>{
@@ -213,7 +235,7 @@ return[...prev,{...item,media_type:type}];
 const isInMyList=useCallback(id=>myList.some(i=>i.id===id),[myList]);
 
 const handleOpenDetails=useCallback((item,type='movie')=>{
-setTrailerKey(null);setOverviewExpanded(false);
+setTrailerKey(null);setOverviewExpanded(false);setIsWatching(false);
 const itemType=item.media_type||type;
 setSelectedItemType(itemType);setSelectedItem(item);
 },[]);
@@ -260,7 +282,7 @@ return(
 <h1 className="text-[28px] font-black text-white leading-tight truncate">{featuredItem.title||featuredItem.name}</h1>
 <div className="flex items-center gap-2 text-[10px] text-[#CBD5E1]"><span className="text-[#60A5FA] font-bold">★ {featuredItem.vote_average?.toFixed(1)||'7.8'}</span><span>•</span><span>{featuredItem.release_date?.substring(0,4)||featuredItem.first_air_date?.substring(0,4)||'2026'}</span><span>•</span><span>HD</span></div>
 <div className="grid grid-cols-[1.35fr_1fr] gap-2 pt-1">
-<button onClick={()=>handlePlayTrailer(featuredItem,'movie')} disabled={trailerLoading} className="h-11 bg-[#3B82F6] text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 disabled:opacity-70">▶ {trailerLoading?(lang==='ar-SA'?'جاري التحميل...':'Loading...'):(lang==='ar-SA'?'شاهد الآن':'Watch Now')}</button>
+<button onClick={()=>handleOpenDetails(featuredItem,'movie')} className="h-11 bg-[#3B82F6] text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2">▶ {lang==='ar-SA'?'شاهد الآن':'Watch Now'}</button>
 <button onClick={()=>toggleMyList(featuredItem,'movie')} className="h-11 bg-[#0F172A] border border-white/10 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2">{isInMyList(featuredItem.id)?'✓':'＋'} {isInMyList(featuredItem.id)?(lang==='ar-SA'?'في قائمتي':'In List'):(lang==='ar-SA'?'قائمتي':'My List')}</button>
 </div>
 <div className="flex justify-center gap-1.5 pt-1">{trendingList.slice(0,5).map((_,i)=><button key={i} onClick={()=>setHeroIndex(i)} className={`h-1.5 rounded-full ${heroIndex===i?'w-6 bg-[#3B82F6]':'w-1.5 bg-[#64748B]/60'}`}/>)}</div>
@@ -343,19 +365,48 @@ return <HorizontalSection key={s.id} title={s.name} icon="•" items={items} loa
 
 {detailsLoading?<div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-2 border-[#3B82F6] border-t-transparent"/></div>:
 <div className="pb-24">
-<div className="relative w-full h-[410px] bg-[#05070A]">
-{details?.backdrop_path?<img src={`${BACKDROP_BASE_URL}${details.backdrop_path}`} alt={details.title||details.name} className="w-full h-full object-cover" loading="eager"/>:<div className="w-full h-full flex items-center justify-center text-[#64748B] text-xs">No Image</div>}
-<div className="absolute inset-0" style={{backgroundImage:'linear-gradient(to top,#05070A 0%,rgba(5,7,10,.35) 55%,transparent 100%)'}}/>
-<div className="absolute bottom-5 inset-x-5 space-y-3">
-<div className="flex items-center gap-2"><span className="bg-[#3B82F6] text-white px-2.5 py-1 rounded-full text-[10px] font-black">★ {details?.vote_average?.toFixed(1)||'0.0'}</span><span className="text-[10px] text-[#CBD5E1]">{details?.release_date?.substring(0,4)||details?.first_air_date?.substring(0,4)}</span>{details?.runtime&&<><span className="text-[#64748B]">•</span><span className="text-[10px] text-[#CBD5E1]">{details.runtime} {lang==='ar-SA'?'دقيقة':'min'}</span></>}</div>
-<h1 className="text-3xl font-black leading-tight">{details?.title||details?.name}</h1>
-<div className="flex flex-wrap gap-2">{details?.genres?.slice(0,4).map(g=><span key={g.id} className="text-[9px] text-[#CBD5E1] bg-white/5 border border-white/10 px-2.5 py-1 rounded-full">{g.name}</span>)}</div>
-</div></div>
+{/* قسم المشاهدة عبر السيرفر أو البوستر */}
+{isWatching ? (
+  <div className="relative w-full aspect-video bg-black">
+    <iframe
+      src={activeServer.getUrl(details?.id, selectedItemType, selectedSeasonNumber, selectedEpisodeNumber)}
+      title="Watch Server"
+      className="w-full h-full border-0"
+      allowFullScreen
+    />
+  </div>
+) : (
+  <div className="relative w-full h-[410px] bg-[#05070A]">
+  {details?.backdrop_path?<img src={`${BACKDROP_BASE_URL}${details.backdrop_path}`} alt={details.title||details.name} className="w-full h-full object-cover" loading="eager"/>:<div className="w-full h-full flex items-center justify-center text-[#64748B] text-xs">No Image</div>}
+  <div className="absolute inset-0" style={{backgroundImage:'linear-gradient(to top,#05070A 0%,rgba(5,7,10,.35) 55%,transparent 100%)'}}/>
+  <div className="absolute bottom-5 inset-x-5 space-y-3">
+  <div className="flex items-center gap-2"><span className="bg-[#3B82F6] text-white px-2.5 py-1 rounded-full text-[10px] font-black">★ {details?.vote_average?.toFixed(1)||'0.0'}</span><span className="text-[10px] text-[#CBD5E1]">{details?.release_date?.substring(0,4)||details?.first_air_date?.substring(0,4)}</span>{details?.runtime&&<><span className="text-[#64748B]">•</span><span className="text-[10px] text-[#CBD5E1]">{details.runtime} {lang==='ar-SA'?'دقيقة':'min'}</span></>}</div>
+  <h1 className="text-3xl font-black leading-tight">{details?.title||details?.name}</h1>
+  <div className="flex flex-wrap gap-2">{details?.genres?.slice(0,4).map(g=><span key={g.id} className="text-[9px] text-[#CBD5E1] bg-white/5 border border-white/10 px-2.5 py-1 rounded-full">{g.name}</span>)}</div>
+  </div></div>
+)}
 
 <div className="px-5 mt-4 space-y-7">
-<div className="grid grid-cols-[1fr_auto] gap-2">
-<button onClick={()=>handlePlayTrailer(details,selectedItemType)} disabled={trailerLoading} className="h-12 bg-[#3B82F6] text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 disabled:opacity-70">▶ {trailerLoading?(lang==='ar-SA'?'جاري التحميل...':'Loading...'):(lang==='ar-SA'?'شاهد التريلر':'Watch Trailer')}</button>
-<button onClick={()=>toggleMyList(details,selectedItemType)} className="h-12 w-14 bg-[#111827] border border-[#1E293B] rounded-2xl text-white text-lg">{isInMyList(details?.id)?'✓':'＋'}</button>
+<div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+<button onClick={()=>handleStartWatching(selectedEpisodeNumber)} className="h-12 bg-[#3B82F6] text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2">▶ {lang==='ar-SA'?'مشاهدة الآن':'Watch Now'}</button>
+<button onClick={()=>handlePlayTrailer(details,selectedItemType)} disabled={trailerLoading} className="h-12 bg-[#1E293B] text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 disabled:opacity-70">🎬 {trailerLoading?(lang==='ar-SA'?'جاري...':'Loading...'):(lang==='ar-SA'?'التريلر':'Trailer')}</button>
+<button onClick={()=>toggleMyList(details,selectedItemType)} className="h-12 w-12 bg-[#111827] border border-[#1E293B] rounded-2xl text-white text-lg flex items-center justify-center">{isInMyList(details?.id)?'✓':'＋'}</button>
+</div>
+
+{/* اختيار سيرفر المشاهدة */}
+<div className="space-y-3">
+  <SectionTitle title={lang==='ar-SA'?'سيرفرات المشاهدة':'Server Sources'} icon="🌐"/>
+  <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
+    {WATCH_SERVERS.map(srv => (
+      <button
+        key={srv.id}
+        onClick={() => { setActiveServer(srv); setIsWatching(true); }}
+        className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-bold border transition-colors ${activeServer.id === srv.id ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0B1220] border-[#1E293B] text-[#94A3B8]'}`}
+      >
+        {srv.name}
+      </button>
+    ))}
+  </div>
 </div>
 
 <div className="space-y-3">
@@ -378,7 +429,7 @@ return <HorizontalSection key={s.id} title={s.name} icon="•" items={items} loa
 <div className="space-y-2">{seasonDetails?.episodes?.map(ep=><div key={ep.id} className="flex gap-3 bg-[#111827] p-2 rounded-2xl border border-[#1E293B]">
 <img src={ep.still_path?`${IMAGE_BASE_URL}${ep.still_path}`:'https://via.placeholder.com/100x60?text=EP'} alt={ep.name} className="w-20 h-12 rounded-xl object-cover flex-shrink-0" loading="lazy"/>
 <div className="min-w-0 flex-1 flex flex-col justify-center"><h4 className="text-[10px] font-bold text-white truncate">{ep.episode_number}. {ep.name}</h4>{ep.overview&&<p className="text-[9px] text-[#64748B] mt-1 line-clamp-2">{ep.overview}</p>}</div>
-<button onClick={()=>addToWatchHistory({...details,media_type:'tv'},'tv')} className="w-8 h-8 rounded-full bg-[#0F172A] self-center flex items-center justify-center text-[#60A5FA] flex-shrink-0">▶</button>
+<button onClick={()=>handleStartWatching(ep.episode_number)} className="w-8 h-8 rounded-full bg-[#0F172A] self-center flex items-center justify-center text-[#60A5FA] flex-shrink-0">▶</button>
 </div>)}</div>}
 </div>}
 
@@ -425,6 +476,20 @@ lang={lang}
 </div>
 )}
 
+const NavItem=({icon,label,active,onClick})=>{
+const icons={
+home:<path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>,
+movie:<path d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/>,
+tv:<path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>,
+history:<path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>,
+heart:<path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+};
+return<button onClick={onClick} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-all ${active?'text-[#3B82F6] font-bold':'text-[#64748B]'}`}>
+<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={active?2.5:1.8}>{icons[icon]}</svg>
+<span className="text-[10px]">{label}</span>
+</button>;
+};
+
 const InfoBox=({label,value})=><div className="bg-[#0B1220] border border-[#1E293B] rounded-2xl p-3 text-center"><p className="text-[8px] text-[#64748B] mb-1">{label}</p><p className="text-[11px] font-black text-white truncate">{value}</p></div>;
 
 const SectionTitle=({title,icon})=><div className="flex items-center gap-2"><span className="w-1 h-4 rounded-full bg-[#3B82F6]"/><span className="text-sm font-black text-white">{icon} {title}</span></div>;
@@ -449,22 +514,8 @@ const HorizontalSection=({title,icon,items,loading,onItemClick,onViewAll,lang})=
 const MovieCard=({item,onClick})=><div onClick={onClick} className="cursor-pointer active:scale-[.98] transition-transform">
 <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-[#111827] border border-[#1E293B]">
 {item.poster_path?<img src={`${IMAGE_BASE_URL}${item.poster_path}`} alt={item.title||item.name} className="w-full h-full object-cover" loading="lazy" decoding="async"/>:<div className="w-full h-full flex items-center justify-center text-[#64748B] text-[9px]">No Image</div>}
-<div className="absolute top-2 right-2 bg-[#05070A]/85 border border-white/10 px-2 py-0.5 rounded-full text-[8px] font-black text-white flex items-center gap-0.5"><span className="text-[#60A5FA]">★</span><span>{item.vote_average?item.vote_average.toFixed(1):'7.5'}</span></div>
+<div className="absolute top-2 right-2 bg-[#05070A]/85 border border-white/10 px-2 py-0.5 rounded-full text-[8px] font-black text-white flex items-center gap-0.5"><span>★</span><span>{item.vote_average?item.vote_average.toFixed(1):'—'}</span></div>
 </div>
-<div className="pt-1.5"><h4 className="text-[10px] font-bold text-white truncate">{item.title||item.name}</h4><p className="text-[8px] text-[#64748B] mt-0.5">{item.release_date?.substring(0,4)||item.first_air_date?.substring(0,4)||''}</p></div>
+<h4 className="text-[11px] font-bold text-white truncate mt-2">{item.title||item.name}</h4>
+<p className="text-[9px] text-[#64748B] mt-0.5">{(item.release_date||item.first_air_date||'').substring(0,4)}</p>
 </div>;
-
-const NavItem=({icon,label,active,onClick})=>{
-const icons={
-home:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[21px] h-[21px]"><path d="M3 10.8 12 3l9 7.8" strokeLinecap="round" strokeLinejoin="round"/><path d="M5.5 9.8V20h13V9.8" strokeLinecap="round" strokeLinejoin="round"/><path d="M9.5 20v-6h5v6" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-movie:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[21px] h-[21px]"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m8 5 3 4M13 5l3 4M18 5l2 3"/><path d="M3 9h18M3 15h18"/></svg>,
-tv:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[21px] h-[21px]"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m9 2 3 3 3-3" strokeLinecap="round" strokeLinejoin="round"/><path d="m10 10 5 2-5 2v-4Z" fill="currentColor" stroke="none"/></svg>,
-history:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[21px] h-[21px]"><path d="M4 12a8 8 0 1 0 2.3-5.6" strokeLinecap="round"/><path d="M4 5v4h4" strokeLinecap="round" strokeLinejoin="round"/><path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-heart:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-[21px] h-[21px]"><path d="M20.8 8.8c0 5-8.8 10-8.8 10s-8.8-5-8.8-10A4.8 4.8 0 0 1 12 6.1a4.8 4.8 0 0 1 8.8 2.7Z" strokeLinecap="round" strokeLinejoin="round"/></svg>
-};
-return <button onClick={onClick} className={`relative min-w-[54px] h-[58px] rounded-2xl flex flex-col items-center justify-center gap-1 transition-all duration-200 ${active?'text-[#3B82F6] bg-[#3B82F6]/10':'text-[#64748B]'}`}>
-{active&&<span className="absolute top-0 w-7 h-[2px] rounded-full bg-[#3B82F6]"/>}
-<span className={active?'scale-105':''}>{icons[icon]}</span>
-<span className={`text-[8px] font-bold ${active?'text-[#60A5FA]':'text-[#64748B]'}`}>{label}</span>
-</button>
-};
