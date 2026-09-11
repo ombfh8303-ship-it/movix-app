@@ -1,4 +1,4 @@
-Import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   fetchTrending, fetchTopRated, fetchUpcomingOrPopular, searchMedia,
   fetchDetails, fetchGenres, fetchByGenre, fetchByStudio,
