@@ -15,27 +15,35 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// سيرفرات مشغلات محدثة وفعالة
+// سيرفرات مشغلات محدثة وفعالة ومستقرة
 const WATCH_SERVERS = [
   { 
-    id: 'vidsrc_icu', 
-    name: 'Server 1 (VidSrc.icu)', 
-    getUrl: (id, type, s, e) => type === 'tv' ? `https://vidsrc.icu/embed/tv/${id}/${s}/${e}` : `https://vidsrc.icu/embed/movie/${id}` 
+    id: 'vidsrc_cc', 
+    name: 'Server 1 (VidSrc.cc)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` 
+      : `https://vidsrc.cc/v2/embed/movie/${id}` 
   },
   { 
     id: 'vidsrc_me', 
     name: 'Server 2 (VidSrc.me)', 
-    getUrl: (id, type, s, e) => type === 'tv' ? `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` : `https://vidsrc.me/embed/movie?tmdb=${id}` 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
+      : `https://vidsrc.me/embed/movie?tmdb=${id}` 
   },
   { 
-    id: 'superembed', 
-    name: 'Server 3 (SuperEmbed)', 
-    getUrl: (id, type, s, e) => type === 'tv' ? `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}` : `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` 
+    id: 'embed_su', 
+    name: 'Server 3 (Embed.su)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://embed.su/embed/tv/${id}/${s}/${e}` 
+      : `https://embed.su/embed/movie/${id}` 
   },
   { 
-    id: 'autoembed', 
-    name: 'Server 4 (AutoEmbed)', 
-    getUrl: (id, type, s, e) => type === 'tv' ? `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}` : `https://player.autoembed.cc/embed/movie/${id}` 
+    id: '2embed', 
+    name: 'Server 4 (2Embed)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` 
+      : `https://www.2embed.cc/embed/${id}` 
   }
 ];
 
@@ -385,9 +393,8 @@ export default function App() {
 
         {detailsLoading ? <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-2 border-[#3B82F6] border-t-transparent" /></div> :
           <div className="pb-24">
-            {/* مشغل الفيديو مع الحمايات المحدثة وخيار الفتح في تبويب جديد */}
             {isWatching ? (
-              <div className="relative w-full aspect-video bg-black flex flex-col">
+              <div className="relative w-full aspect-video bg-black flex flex-col rounded-b-2xl overflow-hidden border-b border-[#1E293B]">
                 <iframe
                   key={`${activeServer.id}-${details?.id}-${selectedSeasonNumber}-${selectedEpisodeNumber}`}
                   src={currentEmbedUrl}
@@ -395,9 +402,9 @@ export default function App() {
                   className="w-full h-full border-0"
                   allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                   allowFullScreen
-                  referrerPolicy="no-referrer"
+                  referrerPolicy="no-referrer-when-downgrade"
                 />
-                <div className="bg-[#0B1220] p-2 flex justify-between items-center text-[10px] text-[#94A3B8] border-t border-[#1E293B]">
+                <div className="bg-[#0B1220] p-2 flex justify-between items-center text-[10px] text-[#94A3B8]">
                   <span>{lang === 'ar-SA' ? 'تواجه مشكلة في المشاهدة؟' : 'Trouble playing?'}</span>
                   <a href={currentEmbedUrl} target="_blank" rel="noopener noreferrer" className="text-[#60A5FA] font-bold underline">
                     {lang === 'ar-SA' ? 'فتح السيرفر في نافذة خارجية ↗' : 'Open in new tab ↗'}
@@ -430,7 +437,7 @@ export default function App() {
                     <button
                       key={srv.id}
                       onClick={() => { setActiveServer(srv); setIsWatching(true); }}
-                      className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-bold border transition-colors ${activeServer.id === srv.id ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0B1220] border-[#1E293B] text-[#94A3B8]'}`}
+                      className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-bold border transition-all ${activeServer.id === srv.id ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
                     >
                       {srv.name}
                     </button>
@@ -438,33 +445,37 @@ export default function App() {
                 </div>
               </div>
 
-              {/* اختيار المواسم والحلقات للمسلسلات */}
+              {/* مواسم وحلقات المسلسلات */}
               {selectedItemType === 'tv' && details?.seasons?.length > 0 && (
-                <div className="space-y-4 pt-2">
+                <div className="space-y-4 pt-2 border-t border-[#1E293B]">
                   <SectionTitle title={lang === 'ar-SA' ? 'المواسم والحلقات' : 'Seasons & Episodes'} icon="📺" />
+                  
+                  {/* شريط اختيار الموسم */}
                   <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
                     {details.seasons.filter(s => s.season_number > 0).map(s => (
                       <button
                         key={s.id}
                         onClick={() => setSelectedSeasonNumber(s.season_number)}
-                        className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-bold border transition-colors ${selectedSeasonNumber === s.season_number ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0B1220] border-[#1E293B] text-[#94A3B8]'}`}
+                        className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-bold border ${selectedSeasonNumber === s.season_number ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
                       >
                         {lang === 'ar-SA' ? `الموسم ${s.season_number}` : `Season ${s.season_number}`}
                       </button>
                     ))}
                   </div>
 
+                  {/* قائمة الحلقات */}
                   {seasonLoading ? (
-                    <div className="py-6 text-center text-xs text-[#64748B] animate-pulse">{lang === 'ar-SA' ? 'جاري تحميل الحلقات...' : 'Loading episodes...'}</div>
+                    <div className="py-8 text-center text-xs text-[#64748B] animate-pulse">{lang === 'ar-SA' ? 'جاري تحميل الحلقات...' : 'Loading episodes...'}</div>
                   ) : (
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
                       {seasonDetails?.episodes?.map(ep => (
                         <button
                           key={ep.id}
                           onClick={() => handleStartWatching(ep.episode_number)}
-                          className={`py-3 rounded-xl text-xs font-bold border flex flex-col items-center gap-1 transition-colors ${selectedEpisodeNumber === ep.episode_number && isWatching ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0B1220] border-[#1E293B] text-[#CBD5E1]'}`}
+                          className={`p-3 rounded-xl border text-right transition-all flex flex-col justify-between ${selectedEpisodeNumber === ep.episode_number && isWatching ? 'bg-[#3B82F6]/20 border-[#3B82F6] text-white' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
                         >
-                          <span>{lang === 'ar-SA' ? `حلقة ${ep.episode_number}` : `Ep ${ep.episode_number}`}</span>
+                          <span className="text-[11px] font-bold text-white line-clamp-1">{ep.episode_number}. {ep.name}</span>
+                          <span className="text-[9px] text-[#64748B] mt-1">{ep.air_date || ''}</span>
                         </button>
                       ))}
                     </div>
@@ -472,19 +483,21 @@ export default function App() {
                 </div>
               )}
 
-              {/* قصة العمل */}
-              <div className="space-y-3">
-                <SectionTitle title={lang === 'ar-SA' ? 'قصة العمل' : 'Story'} icon="✦" />
-                <div className="bg-[#0B1220] border border-[#1E293B] rounded-2xl p-4">
-                  <p className={`text-[#CBD5E1] text-[13px] leading-7 ${overviewExpanded ? '' : 'line-clamp-3'}`}>
-                    {details?.overview || (lang === 'ar-SA' ? 'لا توجد قصة متاحة لهذا العمل حالياً.' : 'No overview available.')}
-                  </p>
-                  {details?.overview && details.overview.length > 120 && (
-                    <button onClick={() => setOverviewExpanded(!overviewExpanded)} className="text-[#60A5FA] text-[11px] font-bold mt-2">
-                      {overviewExpanded ? (lang === 'ar-SA' ? 'عرض أقل' : 'Show Less') : (lang === 'ar-SA' ? 'عرض القصة كاملة' : 'Read More')}
+              {/* القصة والتفاصيل */}
+              <div className="space-y-2 pt-2 border-t border-[#1E293B]">
+                <SectionTitle title={lang === 'ar-SA' ? 'القصة' : 'Overview'} icon="📖" />
+                <p className="text-xs text-[#94A3B8] leading-relaxed">
+                  {details?.overview ? (
+                    overviewExpanded || details.overview.length <= 150
+                      ? details.overview
+                      : `${details.overview.slice(0, 150)}... `
+                  ) : (lang === 'ar-SA' ? 'لا يوجد وصف متوفر.' : 'No description available.')}
+                  {details?.overview && details.overview.length > 150 && (
+                    <button onClick={() => setOverviewExpanded(!overviewExpanded)} className="text-[#60A5FA] font-bold mr-1">
+                      {overviewExpanded ? (lang === 'ar-SA' ? 'عرض أقل' : 'Show less') : (lang === 'ar-SA' ? 'اقرأ المزيد' : 'Read more')}
                     </button>
                   )}
-                </div>
+                </p>
               </div>
 
             </div>
@@ -492,11 +505,11 @@ export default function App() {
         }
       </div>}
 
-      {/* نافذة التريلر */}
+      {/* Modal التريلر */}
       {trailerKey && (
         <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4">
-          <div className="relative w-full max-w-2xl bg-black rounded-2xl overflow-hidden aspect-video border border-[#1E293B]">
-            <button onClick={() => setTrailerKey(null)} className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/70 text-white flex items-center justify-center">✕</button>
+          <div className="relative w-full max-w-2xl aspect-video bg-black rounded-2xl overflow-hidden border border-[#1E293B]">
+            <button onClick={() => setTrailerKey(null)} className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/70 text-white flex items-center justify-center border border-white/10">✕</button>
             <iframe
               src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
               title="Trailer"
@@ -512,12 +525,56 @@ export default function App() {
   );
 }
 
-// المكونات الفرعية المساعدة
+// المكونات الفرعية مساعد الواجهة (UI Helpers)
 function SectionTitle({ title, icon }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[#3B82F6] text-xs">{icon}</span>
-      <h2 className="text-base font-black text-white">{title}</h2>
+      <span className="text-sm">{icon}</span>
+      <h2 className="text-sm font-black tracking-wide text-white">{title}</h2>
+    </div>
+  );
+}
+
+function HorizontalSection({ title, icon, items, loading, onItemClick, onViewAll, lang }) {
+  if (loading) return <div className="h-44 bg-[#0F172A] rounded-2xl animate-pulse" />;
+  if (!items?.length) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <SectionTitle title={title} icon={icon} />
+        {onViewAll && <button onClick={onViewAll} className="text-[10px] text-[#60A5FA] font-bold">{lang === 'ar-SA' ? 'عرض الكل' : 'View All'}</button>}
+      </div>
+      <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2">
+        {items.map(item => (
+          <div key={item.id} className="flex-shrink-0 w-28">
+            <MovieCard item={item} onClick={() => onItemClick(item)} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MovieCard({ item, onClick }) {
+  const title = item.title || item.name;
+  const rating = item.vote_average ? item.vote_average.toFixed(1) : null;
+
+  return (
+    <div onClick={onClick} className="group cursor-pointer space-y-1.5">
+      <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-[#0F172A] border border-[#1E293B]">
+        {item.poster_path ? (
+          <img src={`${IMAGE_BASE_URL}${item.poster_path}`} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[10px] text-[#64748B]">No Image</div>
+        )}
+        {rating && (
+          <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md border border-white/10 px-1.5 py-0.5 rounded-lg text-[9px] font-bold text-[#60A5FA]">
+            ★ {rating}
+          </div>
+        )}
+      </div>
+      <h3 className="text-[11px] font-bold text-[#E2E8F0] truncate leading-tight">{title}</h3>
     </div>
   );
 }
@@ -528,57 +585,13 @@ function NavItem({ icon, label, active, onClick }) {
     movie: '🎬',
     tv: '📺',
     history: '◷',
-    heart: '♥'
+    heart: '♡'
   };
+
   return (
-    <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-colors ${active ? 'text-[#3B82F6]' : 'text-[#64748B]'}`}>
-      <span className="text-lg leading-none">{icons[icon]}</span>
-      <span className="text-[10px] font-bold">{label}</span>
+    <button onClick={onClick} className={`flex flex-col items-center justify-center gap-1 w-14 h-12 rounded-2xl transition-all ${active ? 'text-[#3B82F6]' : 'text-[#64748B]'}`}>
+      <span className="text-base">{icons[icon]}</span>
+      <span className="text-[9px] font-bold">{label}</span>
     </button>
-  );
-}
-
-function MovieCard({ item, onClick }) {
-  const title = item.title || item.name;
-  const rating = item.vote_average?.toFixed(1) || '7.0';
-  const year = item.release_date?.substring(0, 4) || item.first_air_date?.substring(0, 4);
-
-  return (
-    <div onClick={onClick} className="cursor-pointer group relative bg-[#0F172A] border border-[#1E293B] rounded-2xl overflow-hidden aspect-[2/3]">
-      {item.poster_path ? (
-        <img src={`${IMAGE_BASE_URL}${item.poster_path}`} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-[#64748B] text-[10px] text-center p-2">{title}</div>
-      )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90" />
-      <div className="absolute bottom-2 inset-x-2 space-y-1">
-        <h4 className="text-[11px] font-bold text-white truncate">{title}</h4>
-        <div className="flex items-center justify-between text-[9px] text-[#CBD5E1]">
-          <span className="text-[#60A5FA] font-bold">★ {rating}</span>
-          <span>{year}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function HorizontalSection({ title, icon, items, loading, onItemClick, onViewAll, lang }) {
-  if (!items?.length && !loading) return null;
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <SectionTitle title={title} icon={icon} />
-        {onViewAll && <button onClick={onViewAll} className="text-[10px] font-bold text-[#60A5FA]">{lang === 'ar-SA' ? 'عرض الكل' : 'View All'}</button>}
-      </div>
-      <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2">
-        {loading ? Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex-shrink-0 w-28 aspect-[2/3] bg-[#111827] rounded-2xl animate-pulse" />
-        )) : items.map(item => (
-          <div key={item.id} className="flex-shrink-0 w-28">
-            <MovieCard item={item} onClick={() => onItemClick(item)} />
-          </div>
-        ))}
-      </div>
-    </div>
   );
     }
