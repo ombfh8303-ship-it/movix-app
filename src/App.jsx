@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   fetchTrending,
   fetchTopRated,
@@ -26,17 +26,14 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [lang, setLang] = useState('ar-SA');
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Safe LocalStorage read
   const [myList, setMyList] = useState(() => {
     try {
       const saved = localStorage.getItem('movix_my_list');
       return saved ? JSON.parse(saved) : [];
-    } catch (err) {
-      console.warn('LocalStorage restricted:', err);
+    } catch {
       return [];
     }
   });
@@ -76,213 +73,145 @@ export default function App() {
   const [seasonDetails, setSeasonDetails] = useState(null);
   const [seasonLoading, setSeasonLoading] = useState(false);
 
-  // Debounce Search Query
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
+  const searchTimer = useRef(null);
 
   const resetFilters = useCallback(() => {
     setSelectedGenre('');
     setSelectedStudio(null);
     setSearchQuery('');
-    setDebouncedSearch('');
     setMinRating(0);
     setSelectedYear('');
     setPage(1);
     setGridItems([]);
   }, []);
 
-  // Safe LocalStorage write
   useEffect(() => {
     try {
       localStorage.setItem('movix_my_list', JSON.stringify(myList));
-    } catch (err) {
-      console.error('Error saving my list:', err);
-    }
+    } catch (e) {}
   }, [myList]);
 
-  // Fetch Genres
   useEffect(() => {
-    let isMounted = true;
     const type = activeTab === 'tv' ? 'tv' : 'movie';
-
     fetchGenres(type, lang)
-      .then((list) => {
-        if (isMounted) setGenres(list || []);
-      })
-      .catch((err) => console.error('Error fetching genres:', err));
-
-    return () => {
-      isMounted = false;
-    };
+      .then((list) => setGenres(list || []))
+      .catch(() => {});
   }, [activeTab, lang]);
 
-  /* =========================
-     HOME DATA
-  ========================= */
+  /* HOME DATA */
   useEffect(() => {
-    if (
-      activeTab === 'home' &&
-      !debouncedSearch &&
-      !selectedGenre &&
-      !selectedStudio &&
-      !minRating &&
-      !selectedYear
-    ) {
-      let isMounted = true;
+    if (activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear) {
       setLoading(true);
 
-      const loadHomeContent = async () => {
-        try {
-          const [trending, upcoming, topRated, tvTrending] = await Promise.all([
-            fetchTrending('movie', 1, lang),
-            fetchUpcomingOrPopular('movie', 1, lang),
-            fetchTopRated('movie', 1, lang),
-            fetchTrending('tv', 1, lang)
-          ]);
+      Promise.all([
+        fetchTrending('movie', 1, lang),
+        fetchUpcomingOrPopular('movie', 1, lang),
+        fetchTopRated('movie', 1, lang),
+        fetchTrending('tv', 1, lang)
+      ]).then(([trending, upcoming, topRated, tvTrending]) => {
+        setTrendingList(trending?.results || []);
+        setLatestMoviesList(upcoming?.results || []);
+        setTopRatedList(topRated?.results || []);
+        setTrendingTvList(tvTrending?.results || []);
+        setLoading(false);
+      }).catch(() => setLoading(false));
 
-          if (!isMounted) return;
-
-          setTrendingList(trending?.results || []);
-          setLatestMoviesList(upcoming?.results || []);
-          setTopRatedList(topRated?.results || []);
-          setTrendingTvList(tvTrending?.results || []);
-
-          const studioResults = await Promise.allSettled(
-            STUDIOS.map(async (s) => {
-              const type = s.id === 213 || s.id === 49 ? 'tv' : 'movie';
-              const res = await fetchByStudio(type, s.id, 1, lang);
-              return { id: s.id, items: res?.results || [] };
-            })
-          );
-
-          if (!isMounted) return;
-
-          const sMap = {};
-          studioResults.forEach((sr) => {
-            if (sr.status === 'fulfilled') {
-              sMap[sr.value.id] = sr.value.items;
-            }
-          });
-
-          setStudioMoviesMap(sMap);
-        } catch (err) {
-          console.error('Error loading home content:', err);
-        } finally {
-          if (isMounted) setLoading(false);
-        }
-      };
-
-      loadHomeContent();
-
-      return () => {
-        isMounted = false;
-      };
+      STUDIOS.forEach((s) => {
+        const type = s.id === 213 || s.id === 49 ? 'tv' : 'movie';
+        fetchByStudio(type, s.id, 1, lang).then((res) => {
+          setStudioMoviesMap((prev) => ({ ...prev, [s.id]: res?.results || [] }));
+        }).catch(() => {});
+      });
     }
-  }, [activeTab, debouncedSearch, selectedGenre, selectedStudio, minRating, selectedYear, lang]);
+  }, [activeTab, searchQuery, selectedGenre, selectedStudio, minRating, selectedYear, lang]);
 
-  /* =========================
-     HERO SLIDER
-  ========================= */
+  /* HERO SLIDER */
   useEffect(() => {
     if (trendingList.length === 0) return;
-
     const interval = setInterval(() => {
-      setHeroIndex((prevIndex) => (prevIndex + 1) % Math.min(trendingList.length, 5));
-    }, 6000);
-
+      setHeroIndex((prev) => (prev + 1) % Math.min(trendingList.length, 5));
+    }, 5000);
     return () => clearInterval(interval);
   }, [trendingList]);
 
-  /* =========================
-     GRID DATA
-  ========================= */
-  const loadGridData = useCallback(
-    async (pageNum = 1, append = false) => {
-      if (pageNum === 1) setLoading(true);
-      else setLoadingMore(true);
+  /* GRID DATA & SEARCH */
+  const loadGridData = useCallback((pageNum = 1, append = false, query = searchQuery) => {
+    if (pageNum === 1) setLoading(true);
+    else setLoadingMore(true);
 
-      const type = activeTab === 'tv' ? 'tv' : 'movie';
-      let data;
+    const type = activeTab === 'tv' ? 'tv' : 'movie';
+    let promise;
 
-      try {
-        if (debouncedSearch.trim()) {
-          data = await searchMedia(debouncedSearch, type, pageNum, lang);
-        } else if (selectedGenre) {
-          data = await fetchByGenre(type, selectedGenre, pageNum, lang);
-        } else if (selectedStudio) {
-          const studioType = selectedStudio.id === 213 || selectedStudio.id === 49 ? 'tv' : type;
-          data = await fetchByStudio(studioType, selectedStudio.id, pageNum, lang);
-        } else {
-          data = await fetchTrending(type, pageNum, lang);
-        }
+    if (query.trim()) {
+      promise = searchMedia(query, type, pageNum, lang);
+    } else if (selectedGenre) {
+      promise = fetchByGenre(type, selectedGenre, pageNum, lang);
+    } else if (selectedStudio) {
+      const studioType = selectedStudio.id === 213 || selectedStudio.id === 49 ? 'tv' : type;
+      promise = fetchByStudio(studioType, selectedStudio.id, pageNum, lang);
+    } else {
+      promise = fetchTrending(type, pageNum, lang);
+    }
 
-        let results = data?.results || [];
+    promise.then((data) => {
+      let results = data?.results || [];
 
-        if (minRating > 0) {
-          results = results.filter((item) => (item.vote_average || 0) >= minRating);
-        }
-
-        if (selectedYear) {
-          results = results.filter((item) => {
-            const date = item.release_date || item.first_air_date || '';
-            return date.startsWith(selectedYear);
-          });
-        }
-
-        setGridItems((prev) => (append ? [...prev, ...results] : results));
-        setTotalPages(data?.total_pages || 1);
-      } catch (err) {
-        console.error('Error fetching grid items:', err);
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
+      if (minRating > 0) {
+        results = results.filter((item) => (item.vote_average || 0) >= minRating);
       }
-    },
-    [activeTab, debouncedSearch, selectedGenre, selectedStudio, minRating, selectedYear, lang]
-  );
+      if (selectedYear) {
+        results = results.filter((item) => {
+          const date = item.release_date || item.first_air_date || '';
+          return date.startsWith(selectedYear);
+        });
+      }
+
+      setGridItems((prev) => (append ? [...prev, ...results] : results));
+      setTotalPages(data?.total_pages || 1);
+    }).catch(() => {}).finally(() => {
+      setLoading(false);
+      setLoadingMore(false);
+    });
+  }, [activeTab, selectedGenre, selectedStudio, minRating, selectedYear, lang]);
+
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearchQuery(val);
+    setSelectedGenre('');
+    setSelectedStudio(null);
+
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      setPage(1);
+      loadGridData(1, false, val);
+    }, 400);
+  };
 
   useEffect(() => {
-    if (
-      activeTab !== 'home' ||
-      debouncedSearch ||
-      selectedGenre ||
-      selectedStudio ||
-      minRating ||
-      selectedYear
-    ) {
+    if (activeTab !== 'home' || selectedGenre || selectedStudio || minRating || selectedYear) {
       setPage(1);
-      loadGridData(1, false);
+      loadGridData(1, false, searchQuery);
     }
-  }, [activeTab, debouncedSearch, selectedGenre, selectedStudio, minRating, selectedYear, lang, loadGridData]);
+  }, [activeTab, selectedGenre, selectedStudio, minRating, selectedYear, lang]);
 
   const handleLoadMore = () => {
     if (page < totalPages && !loadingMore) {
       const nextPage = page + 1;
       setPage(nextPage);
-      loadGridData(nextPage, true);
+      loadGridData(nextPage, true, searchQuery);
     }
   };
 
-  /* =========================
-     DETAILS
-  ========================= */
+  /* DETAILS */
   useEffect(() => {
     if (!selectedItem) {
       setDetails(null);
       return;
     }
 
-    let isMounted = true;
     setDetailsLoading(true);
-
     fetchDetails(selectedItemType, selectedItem.id, lang)
       .then((data) => {
-        if (!isMounted) return;
-
         setDetails(data);
         const trailer = data?.videos?.results?.find(
           (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
@@ -294,109 +223,71 @@ export default function App() {
           setSelectedSeasonNumber(firstSeason.season_number);
         }
       })
-      .catch((err) => console.error('Error fetching details:', err))
-      .finally(() => {
-        if (isMounted) setDetailsLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
+      .catch(() => {})
+      .finally(() => setDetailsLoading(false));
   }, [selectedItem, selectedItemType, lang]);
 
-  /* =========================
-     SEASON DETAILS
-  ========================= */
+  /* SEASONS */
   useEffect(() => {
     if (selectedItemType !== 'tv' || !selectedItem?.id || selectedSeasonNumber === null) {
       setSeasonDetails(null);
       return;
     }
 
-    let isMounted = true;
-    const controller = new AbortController();
     setSeasonLoading(true);
-
     fetch(
-      `https://api.themoviedb.org/3/tv/${selectedItem.id}/season/${selectedSeasonNumber}?api_key=4289874cb3f960f477028fae98f0efd0&language=${lang}`,
-      { signal: controller.signal }
+      `https://api.themoviedb.org/3/tv/${selectedItem.id}/season/${selectedSeasonNumber}?api_key=4289874cb3f960f477028fae98f0efd0&language=${lang}`
     )
       .then((res) => (res.ok ? res.json() : { episodes: [] }))
-      .then((data) => {
-        if (isMounted) setSeasonDetails(data);
-      })
-      .catch((err) => {
-        if (err.name !== 'AbortError' && isMounted) {
-          console.error('Error fetching season details:', err);
-          setSeasonDetails({ episodes: [] });
-        }
-      })
-      .finally(() => {
-        if (isMounted) setSeasonLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-      controller.abort();
-    };
+      .then((data) => setSeasonDetails(data))
+      .catch(() => setSeasonDetails({ episodes: [] }))
+      .finally(() => setSeasonLoading(false));
   }, [selectedItem, selectedItemType, selectedSeasonNumber, lang]);
 
-  /* =========================
-     TRAILER & LIST ACTIONS
-  ========================= */
-  const handlePlayTrailer = useCallback(
-    async (item, type = 'movie') => {
-      if (!item) return;
-
-      try {
-        const data = await fetchDetails(type, item.id, lang);
-        const trailer = data?.videos?.results?.find(
-          (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
-        );
-
-        if (trailer) {
-          setTrailerKey(trailer.key);
-        } else {
-          alert(lang === 'ar-SA' ? 'عذراً، الإعلان التشويقي غير متوفر' : 'Trailer not available');
-        }
-      } catch {
-        alert(lang === 'ar-SA' ? 'خطأ في جلب التريلر' : 'Error loading trailer');
+  const handlePlayTrailer = async (item, type = 'movie') => {
+    if (!item) return;
+    try {
+      const data = await fetchDetails(type, item.id, lang);
+      const trailer = data?.videos?.results?.find(
+        (vid) => vid.site === 'YouTube' && (vid.type === 'Trailer' || vid.type === 'Teaser')
+      );
+      if (trailer) {
+        setTrailerKey(trailer.key);
+      } else {
+        alert(lang === 'ar-SA' ? 'الإعلان غير متوفر' : 'Trailer not available');
       }
-    },
-    [lang]
-  );
+    } catch {
+      alert(lang === 'ar-SA' ? 'خطأ في التحميل' : 'Error loading trailer');
+    }
+  };
 
-  const toggleMyList = useCallback((item, type = 'movie') => {
+  const toggleMyList = (item, type = 'movie') => {
     setMyList((prev) => {
       const exists = prev.some((i) => i.id === item.id);
       if (exists) return prev.filter((i) => i.id !== item.id);
       return [...prev, { ...item, media_type: type }];
     });
-  }, []);
+  };
 
-  const isInMyList = useCallback((itemId) => myList.some((i) => i.id === itemId), [myList]);
+  const isInMyList = (itemId) => myList.some((i) => i.id === itemId);
 
-  const handleOpenDetails = useCallback((item, type = 'movie') => {
+  const handleOpenDetails = (item, type = 'movie') => {
     setActiveDetailTab('similar');
     setTrailerKey(null);
     setSelectedItemType(item.media_type || type);
     setSelectedItem(item);
-  }, []);
+  };
 
-  const featuredItem = useMemo(() => {
-    return trendingList.length > 0 ? trendingList[heroIndex] || trendingList[0] : null;
-  }, [trendingList, heroIndex]);
+  const genresMap = genres.reduce((acc, g) => {
+    acc[g.id] = g.name;
+    return acc;
+  }, {});
 
-  const genresMap = useMemo(() => {
-    return genres.reduce((acc, g) => {
-      acc[g.id] = g.name;
-      return acc;
-    }, {});
-  }, [genres]);
+  const featuredItem = trendingList.length > 0 ? trendingList[heroIndex] || trendingList[0] : null;
 
   const isHome =
     activeTab === 'home' &&
-    !debouncedSearch &&
+    !searchQuery &&
     !selectedGenre &&
     !selectedStudio &&
     !minRating &&
@@ -404,13 +295,13 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen bg-[#05070A] text-[#F8FAFC] antialiased pb-24 font-sans max-w-md mx-auto relative overflow-hidden select-none"
+      className="min-h-screen bg-[#05070A] text-[#F8FAFC] pb-24 font-sans max-w-md mx-auto relative select-none"
       dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}
     >
       {/* HEADER */}
       <header className="px-4 pt-5 pb-2 flex items-center justify-between">
         <div
-          className="flex items-center gap-2 cursor-pointer touch-manipulation"
+          className="flex items-center gap-2 cursor-pointer"
           onClick={() => {
             setActiveTab('home');
             resetFilters();
@@ -432,7 +323,7 @@ export default function App() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setLang((p) => (p === 'ar-SA' ? 'en-US' : 'ar-SA'))}
-            className="h-9 px-3 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#CBD5E1] text-[10px] font-bold flex items-center gap-1.5 active:scale-95 transition touch-manipulation"
+            className="h-9 px-3 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#CBD5E1] text-[10px] font-bold flex items-center gap-1.5"
           >
             <span>🌐</span>
             <span>{lang === 'ar-SA' ? 'EN' : 'العربية'}</span>
@@ -445,7 +336,7 @@ export default function App() {
               setTempSelectedYear(selectedYear);
               setShowFilterModal(true);
             }}
-            className="w-9 h-9 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#CBD5E1] flex items-center justify-center text-sm active:scale-95 transition touch-manipulation"
+            className="w-9 h-9 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#CBD5E1] flex items-center justify-center text-sm"
           >
             ⚙
           </button>
@@ -454,7 +345,7 @@ export default function App() {
 
       {/* SEARCH */}
       <div className="px-4 pt-3">
-        <div className="relative group">
+        <div className="relative">
           <div className="absolute inset-y-0 left-0 w-10 flex items-center justify-center pointer-events-none text-[#64748B]">
             🔍
           </div>
@@ -464,12 +355,8 @@ export default function App() {
               lang === 'ar-SA' ? 'ابحث عن فيلم، مسلسل، ممثل...' : 'Search movies, series, actors...'
             }
             value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setSelectedGenre('');
-              setSelectedStudio(null);
-            }}
-            className="w-full h-12 bg-[#0F172A] text-white placeholder-[#64748B] border border-[#1E293B] focus:border-[#3B82F6] focus:shadow-lg focus:shadow-[#3B82F6]/10 px-4 rounded-2xl text-xs focus:outline-none transition pr-4 pl-10"
+            onChange={handleSearchChange}
+            className="w-full h-12 bg-[#0F172A] text-white placeholder-[#64748B] border border-[#1E293B] focus:border-[#3B82F6] px-4 rounded-2xl text-xs outline-none pr-4 pl-10"
           />
         </div>
       </div>
@@ -477,7 +364,7 @@ export default function App() {
       <main className="px-4 pt-5 space-y-8">
         {/* GENRE CHIPS */}
         {isHome && genres.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1 will-change-transform">
+          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
             {genres.slice(0, 8).map((genre) => (
               <button
                 key={genre.id}
@@ -485,7 +372,7 @@ export default function App() {
                   setSelectedGenre(genre.id);
                   setActiveTab('movies');
                 }}
-                className="flex-shrink-0 px-4 py-2 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#94A3B8] text-[10px] font-bold active:scale-95 transition hover:border-[#3B82F6]/50 hover:text-[#60A5FA] touch-manipulation"
+                className="flex-shrink-0 px-4 py-2 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#94A3B8] text-[10px] font-bold"
               >
                 {genre.name}
               </button>
@@ -496,16 +383,15 @@ export default function App() {
         {/* HERO */}
         {isHome &&
           (loading ? (
-            <div className="h-[390px] bg-[#111827] rounded-[28px] animate-pulse border border-[#1E293B]" />
+            <div className="h-[390px] bg-[#111827] rounded-[28px] animate-pulse" />
           ) : (
             featuredItem && (
-              <div className="relative overflow-hidden rounded-[28px] bg-[#111827] border border-[#1E293B] shadow-2xl shadow-black/40">
+              <div className="relative overflow-hidden rounded-[28px] bg-[#111827] border border-[#1E293B]">
                 <div className="relative h-[390px] w-full">
                   <img
                     src={`${BACKDROP_BASE_URL}${featuredItem.backdrop_path || featuredItem.poster_path}`}
                     alt={featuredItem.title || featuredItem.name}
-                    className="w-full h-full object-cover scale-[1.01] transition-all duration-700"
-                    loading="eager"
+                    className="w-full h-full object-cover"
                   />
                   <div
                     className="absolute inset-0"
@@ -514,31 +400,20 @@ export default function App() {
                         'linear-gradient(to top, #05070A 0%, rgba(5,7,10,0.55) 50%, rgba(5,7,10,0.10) 100%)'
                     }}
                   />
-                  <div
-                    className="absolute inset-0"
-                    style={{
-                      backgroundImage:
-                        'linear-gradient(to right, rgba(5,7,10,0.35), transparent, transparent)'
-                    }}
-                  />
-                  <div
-                    className="absolute inset-x-0 bottom-0 h-1/2"
-                    style={{ backgroundImage: 'linear-gradient(to top, #05070A, transparent)' }}
-                  />
 
                   <div className="absolute bottom-5 inset-x-5 space-y-3">
                     <div className="flex items-center gap-2">
-                      <span className="bg-[#3B82F6] text-white px-2.5 py-1 rounded-full text-[9px] font-black shadow-lg shadow-[#3B82F6]/20">
+                      <span className="bg-[#3B82F6] text-white px-2.5 py-1 rounded-full text-[9px] font-black">
                         {featuredItem.genre_ids?.length
                           ? genresMap[featuredItem.genre_ids[0]] || 'مميز'
                           : 'مميز'}
                       </span>
-                      <span className="text-[9px] text-[#CBD5E1] bg-black/30 backdrop-blur-md border border-white/10 px-2 py-1 rounded-full">
+                      <span className="text-[9px] text-[#CBD5E1] bg-black/30 border border-white/10 px-2 py-1 rounded-full">
                         جديد
                       </span>
                     </div>
 
-                    <h1 className="text-[28px] font-black text-white leading-tight drop-shadow-lg line-clamp-1">
+                    <h1 className="text-[28px] font-black text-white leading-tight truncate">
                       {featuredItem.title || featuredItem.name}
                     </h1>
 
@@ -559,7 +434,7 @@ export default function App() {
                     <div className="grid grid-cols-[1.35fr_1fr] gap-2 pt-1">
                       <button
                         onClick={() => handlePlayTrailer(featuredItem, 'movie')}
-                        className="h-11 bg-[#3B82F6] hover:bg-[#2563EB] text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-xl shadow-[#3B82F6]/20 active:scale-[.97] transition touch-manipulation"
+                        className="h-11 bg-[#3B82F6] text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-[#3B82F6]/20"
                       >
                         <span>▶</span>
                         <span>{lang === 'ar-SA' ? 'شاهد الآن' : 'Watch Now'}</span>
@@ -567,11 +442,9 @@ export default function App() {
 
                       <button
                         onClick={() => toggleMyList(featuredItem, 'movie')}
-                        className="h-11 bg-[#0F172A]/90 backdrop-blur-md border border-white/10 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 active:scale-[.97] transition touch-manipulation"
+                        className="h-11 bg-[#0F172A] border border-white/10 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2"
                       >
-                        <span className="text-base">
-                          {isInMyList(featuredItem.id) ? '✓' : '＋'}
-                        </span>
+                        <span>{isInMyList(featuredItem.id) ? '✓' : '＋'}</span>
                         <span>
                           {isInMyList(featuredItem.id)
                             ? lang === 'ar-SA'
@@ -589,7 +462,7 @@ export default function App() {
                         <button
                           key={index}
                           onClick={() => setHeroIndex(index)}
-                          className={`h-1.5 rounded-full transition-all ${
+                          className={`h-1.5 rounded-full ${
                             heroIndex === index ? 'w-6 bg-[#3B82F6]' : 'w-1.5 bg-[#64748B]/60'
                           }`}
                         />
@@ -603,12 +476,11 @@ export default function App() {
 
         {/* HOME SECTIONS */}
         {isHome && (
-          <div className="space-y-9">
+          <div className="space-y-8">
             <HorizontalSection
               title={lang === 'ar-SA' ? 'الأكثر رواجاً' : 'Trending Now'}
               icon="🔥"
               items={trendingList}
-              genresMap={genresMap}
               loading={loading}
               onItemClick={(item) => handleOpenDetails(item, 'movie')}
               onViewAll={() => setActiveTab('movies')}
@@ -619,7 +491,6 @@ export default function App() {
               title={lang === 'ar-SA' ? 'أحدث الأفلام' : 'Latest Movies'}
               icon="✦"
               items={latestMoviesList}
-              genresMap={genresMap}
               loading={loading}
               onItemClick={(item) => handleOpenDetails(item, 'movie')}
               onViewAll={() => setActiveTab('movies')}
@@ -630,7 +501,6 @@ export default function App() {
               title={lang === 'ar-SA' ? 'الأعلى تقييماً' : 'Top Rated'}
               icon="★"
               items={topRatedList}
-              genresMap={genresMap}
               loading={loading}
               onItemClick={(item) => handleOpenDetails(item, 'movie')}
               onViewAll={() => setActiveTab('movies')}
@@ -641,7 +511,6 @@ export default function App() {
               title={lang === 'ar-SA' ? 'المسلسلات الرائجة' : 'Popular TV'}
               icon="▣"
               items={trendingTvList}
-              genresMap={genresMap}
               loading={loading}
               onItemClick={(item) => handleOpenDetails(item, 'tv')}
               onViewAll={() => setActiveTab('tv')}
@@ -666,7 +535,6 @@ export default function App() {
                     title={studio.name}
                     icon="•"
                     items={studioItems}
-                    genresMap={genresMap}
                     loading={loading}
                     onItemClick={(item) => handleOpenDetails(item, itemType)}
                     onViewAll={() => {
@@ -682,14 +550,11 @@ export default function App() {
         )}
 
         {/* MY LIST */}
-        {activeTab === 'mylist' && !debouncedSearch && (
+        {activeTab === 'mylist' && !searchQuery && (
           <div className="space-y-5">
             <SectionTitle title={lang === 'ar-SA' ? 'قائمتي' : 'My List'} icon="♥" />
             {myList.length === 0 ? (
-              <div className="text-center py-20 text-[#64748B] space-y-3">
-                <div className="mx-auto w-16 h-16 rounded-2xl bg-[#0F172A] border border-[#1E293B] flex items-center justify-center text-2xl">
-                  ♡
-                </div>
+              <div className="text-center py-20 text-[#64748B]">
                 <p className="text-xs">
                   {lang === 'ar-SA'
                     ? 'لم تقم بإضافة أي أعمال لقائمتك بعد.'
@@ -702,7 +567,6 @@ export default function App() {
                   <MovieCard
                     key={item.id}
                     item={item}
-                    genresMap={genresMap}
                     onClick={() => handleOpenDetails(item, item.media_type || 'movie')}
                   />
                 ))}
@@ -713,7 +577,7 @@ export default function App() {
 
         {/* GRID */}
         {(activeTab !== 'home' ||
-          debouncedSearch ||
+          searchQuery ||
           selectedGenre ||
           selectedStudio ||
           minRating > 0 ||
@@ -721,33 +585,28 @@ export default function App() {
           activeTab !== 'mylist' && (
             <div className="space-y-5">
               <div className="flex items-end justify-between gap-3">
-                <div>
-                  <p className="text-[9px] text-[#64748B] mb-1">
-                    {debouncedSearch ? 'SEARCH' : 'BROWSE'}
-                  </p>
-                  <h3 className="text-lg font-black text-white">
-                    {debouncedSearch
-                      ? lang === 'ar-SA'
-                        ? 'نتائج البحث'
-                        : 'Search Results'
-                      : selectedStudio
-                      ? selectedStudio.name
-                      : selectedGenre
-                      ? genres.find((g) => g.id === Number(selectedGenre))?.name
-                      : activeTab === 'movies'
-                      ? lang === 'ar-SA'
-                        ? 'الأفلام'
-                        : 'Movies'
-                      : lang === 'ar-SA'
-                      ? 'المسلسلات'
-                      : 'TV Series'}
-                  </h3>
-                </div>
+                <h3 className="text-lg font-black text-white">
+                  {searchQuery
+                    ? lang === 'ar-SA'
+                      ? 'نتائج البحث'
+                      : 'Search Results'
+                    : selectedStudio
+                    ? selectedStudio.name
+                    : selectedGenre
+                    ? genres.find((g) => g.id === Number(selectedGenre))?.name
+                    : activeTab === 'movies'
+                    ? lang === 'ar-SA'
+                      ? 'الأفلام'
+                      : 'Movies'
+                    : lang === 'ar-SA'
+                    ? 'المسلسلات'
+                    : 'TV Series'}
+                </h3>
 
                 {(selectedGenre || selectedStudio || minRating > 0 || selectedYear) && (
                   <button
                     onClick={resetFilters}
-                    className="text-[9px] text-[#60A5FA] bg-[#3B82F6]/10 px-3 py-1.5 rounded-full border border-[#3B82F6]/20 touch-manipulation"
+                    className="text-[9px] text-[#60A5FA] bg-[#3B82F6]/10 px-3 py-1.5 rounded-full border border-[#3B82F6]/20"
                   >
                     {lang === 'ar-SA' ? 'إلغاء الفلتر' : 'Clear'}
                   </button>
@@ -771,7 +630,6 @@ export default function App() {
                       <MovieCard
                         key={item.id}
                         item={item}
-                        genresMap={genresMap}
                         onClick={() => handleOpenDetails(item, activeTab === 'tv' ? 'tv' : 'movie')}
                       />
                     ))}
@@ -781,7 +639,7 @@ export default function App() {
                     <button
                       onClick={handleLoadMore}
                       disabled={loadingMore}
-                      className="w-full h-12 bg-[#0F172A] border border-[#1E293B] text-[#60A5FA] font-bold rounded-2xl text-xs active:scale-[.98] transition touch-manipulation"
+                      className="w-full h-12 bg-[#0F172A] border border-[#1E293B] text-[#60A5FA] font-bold rounded-2xl text-xs"
                     >
                       {loadingMore
                         ? lang === 'ar-SA'
@@ -800,17 +658,13 @@ export default function App() {
 
       {/* BOTTOM NAV */}
       <div className="fixed bottom-3 inset-x-3 mx-auto max-w-md z-40">
-        <nav className="h-[66px] bg-[#0B1220]/95 backdrop-blur-xl border border-[#1E293B] rounded-3xl shadow-2xl shadow-black/50 flex items-center justify-around px-1">
+        <nav className="h-[66px] bg-[#0B1220]/95 border border-[#1E293B] rounded-3xl flex items-center justify-around px-1 shadow-2xl">
           <NavItem
-            icon={
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-              </svg>
-            }
+            icon="🏠"
             label={lang === 'ar-SA' ? 'الرئيسية' : 'Home'}
             active={
               activeTab === 'home' &&
-              !debouncedSearch &&
+              !searchQuery &&
               !selectedGenre &&
               !selectedStudio &&
               !minRating &&
@@ -823,15 +677,11 @@ export default function App() {
           />
 
           <NavItem
-            icon={
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
-              </svg>
-            }
+            icon="🎬"
             label={lang === 'ar-SA' ? 'الأفلام' : 'Movies'}
             active={
               activeTab === 'movies' &&
-              !debouncedSearch &&
+              !searchQuery &&
               !selectedGenre &&
               !selectedStudio &&
               !minRating &&
@@ -844,15 +694,11 @@ export default function App() {
           />
 
           <NavItem
-            icon={
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2V5c0-1.1-.89-2-1.99-2zm0 14H3V5h18v12z" />
-              </svg>
-            }
+            icon="📺"
             label={lang === 'ar-SA' ? 'المسلسلات' : 'Series'}
             active={
               activeTab === 'tv' &&
-              !debouncedSearch &&
+              !searchQuery &&
               !selectedGenre &&
               !selectedStudio &&
               !minRating &&
@@ -865,11 +711,7 @@ export default function App() {
           />
 
           <NavItem
-            icon={
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-              </svg>
-            }
+            icon="♥"
             label={lang === 'ar-SA' ? 'قائمتي' : 'My List'}
             active={activeTab === 'mylist'}
             onClick={() => {
@@ -882,18 +724,15 @@ export default function App() {
 
       {/* FILTER MODAL */}
       {showFilterModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end justify-center p-3">
-          <div className="bg-[#0F172A] border border-[#1E293B] rounded-[28px] w-full max-w-md p-5 space-y-5 shadow-2xl max-h-[85vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center p-3">
+          <div className="bg-[#0F172A] border border-[#1E293B] rounded-[28px] w-full max-w-md p-5 space-y-5 max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center">
-              <div>
-                <p className="text-[9px] text-[#64748B] mb-1">MOVIX</p>
-                <h3 className="text-base font-black text-white">
-                  {lang === 'ar-SA' ? 'تصفية المحتوى' : 'Filter Content'}
-                </h3>
-              </div>
+              <h3 className="text-base font-black text-white">
+                {lang === 'ar-SA' ? 'تصفية المحتوى' : 'Filter Content'}
+              </h3>
               <button
                 onClick={() => setShowFilterModal(false)}
-                className="w-9 h-9 rounded-full bg-[#111827] border border-[#1E293B] text-[#94A3B8] touch-manipulation"
+                className="w-8 h-8 rounded-full bg-[#111827] text-[#94A3B8]"
               >
                 ✕
               </button>
@@ -906,7 +745,7 @@ export default function App() {
               <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
                 <button
                   onClick={() => setTempGenre('')}
-                  className={`py-2 rounded-xl text-[10px] font-bold border touch-manipulation ${
+                  className={`py-2 rounded-xl text-[10px] font-bold border ${
                     tempGenre === ''
                       ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
                       : 'bg-[#05070A] border-[#1E293B] text-[#94A3B8]'
@@ -918,7 +757,7 @@ export default function App() {
                   <button
                     key={g.id}
                     onClick={() => setTempGenre(g.id)}
-                    className={`py-2 px-2 rounded-xl text-[10px] font-bold truncate border touch-manipulation ${
+                    className={`py-2 px-2 rounded-xl text-[10px] font-bold truncate border ${
                       String(tempGenre) === String(g.id)
                         ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
                         : 'bg-[#05070A] border-[#1E293B] text-[#94A3B8]'
@@ -953,7 +792,7 @@ export default function App() {
               <select
                 value={tempSelectedYear}
                 onChange={(e) => setTempSelectedYear(e.target.value)}
-                className="w-full bg-[#05070A] border border-[#1E293B] text-white text-xs rounded-xl p-3 focus:outline-none"
+                className="w-full bg-[#05070A] border border-[#1E293B] text-white text-xs rounded-xl p-3 outline-none"
               >
                 <option value="">{lang === 'ar-SA' ? 'كل السنين' : 'All Years'}</option>
                 {Array.from({ length: 25 }, (_, i) => 2026 - i).map((y) => (
@@ -973,7 +812,7 @@ export default function App() {
                 setSearchQuery('');
                 setShowFilterModal(false);
               }}
-              className="w-full h-12 bg-[#3B82F6] hover:bg-[#2563EB] text-white font-black rounded-2xl text-xs shadow-lg shadow-[#3B82F6]/20 active:scale-[.98] transition touch-manipulation"
+              className="w-full h-12 bg-[#3B82F6] text-white font-black rounded-2xl text-xs"
             >
               {lang === 'ar-SA' ? 'تطبيق الفلتر' : 'Apply Filters'}
             </button>
@@ -986,18 +825,18 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-[#05070A] overflow-y-auto min-h-screen text-[#F8FAFC]">
           <button
             onClick={() => setSelectedItem(null)}
-            className="fixed top-4 left-4 z-[60] w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white flex items-center justify-center text-sm touch-manipulation"
+            className="fixed top-4 left-4 z-[60] w-10 h-10 rounded-full bg-black/50 border border-white/10 text-white flex items-center justify-center text-sm"
           >
             ✕
           </button>
 
           {detailsLoading ? (
             <div className="flex justify-center items-center h-screen">
-              <div className="animate-spin rounded-full h-9 w-9 border-2 border-[#3B82F6] border-t-transparent" />
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#3B82F6] border-t-transparent" />
             </div>
           ) : (
             <div className="pb-24">
-              <div className="relative w-full h-[430px] bg-[#05070A]">
+              <div className="relative w-full h-[380px] bg-[#05070A]">
                 {details?.backdrop_path ? (
                   <img
                     src={`${BACKDROP_BASE_URL}${details.backdrop_path}`}
@@ -1017,9 +856,9 @@ export default function App() {
                   }}
                 />
 
-                <div className="absolute bottom-6 inset-x-5 space-y-3">
+                <div className="absolute bottom-5 inset-x-5 space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="bg-[#3B82F6] text-white px-2.5 py-1 rounded-full text-[10px] font-black">
+                    <span className="bg-[#3B82F6] text-white px-2 py-0.5 rounded-full text-[10px] font-black">
                       ★ {details?.vote_average?.toFixed(1) || '0.0'}
                     </span>
                     <span className="text-[10px] text-[#CBD5E1]">
@@ -1028,50 +867,39 @@ export default function App() {
                     </span>
                   </div>
 
-                  <h1 className="text-3xl font-black leading-tight">
+                  <h1 className="text-2xl font-black leading-tight">
                     {details?.title || details?.name}
                   </h1>
-
-                  <div className="flex flex-wrap gap-2">
-                    {details?.genres?.slice(0, 3).map((g) => (
-                      <span
-                        key={g.id}
-                        className="text-[9px] text-[#CBD5E1] bg-white/5 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-full"
-                      >
-                        {g.name}
-                      </span>
-                    ))}
-                  </div>
                 </div>
               </div>
 
-              <div className="px-5 mt-1 space-y-7">
+              <div className="px-5 mt-4 space-y-6">
                 <div className="grid grid-cols-[1fr_auto] gap-2">
                   <button
                     onClick={() => handlePlayTrailer(details, selectedItemType)}
-                    className="h-12 bg-[#3B82F6] text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-[#3B82F6]/20 touch-manipulation"
+                    className="h-12 bg-[#3B82F6] text-white rounded-2xl text-xs font-black flex items-center justify-center gap-2"
                   >
                     ▶ {lang === 'ar-SA' ? 'شاهد التريلر' : 'Watch Trailer'}
                   </button>
 
                   <button
                     onClick={() => toggleMyList(details, selectedItemType)}
-                    className="h-12 w-14 bg-[#111827] border border-[#1E293B] rounded-2xl text-white text-lg touch-manipulation"
+                    className="h-12 w-14 bg-[#111827] border border-[#1E293B] rounded-2xl text-white text-lg"
                   >
                     {isInMyList(details?.id) ? '✓' : '＋'}
                   </button>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <SectionTitle title={lang === 'ar-SA' ? 'القصة' : 'Overview'} icon="✦" />
-                  <p className="text-[#CBD5E1] text-xs leading-7">
+                  <p className="text-[#CBD5E1] text-xs leading-6">
                     {details?.overview ||
                       (lang === 'ar-SA' ? 'لا يوجد وصف متاح.' : 'No overview available.')}
                   </p>
                 </div>
 
                 {selectedItemType === 'tv' && details?.seasons?.length > 0 && (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <SectionTitle
                       title={lang === 'ar-SA' ? 'المواسم والحلقات' : 'Seasons & Episodes'}
                       icon="▣"
@@ -1084,7 +912,7 @@ export default function App() {
                           <button
                             key={s.id}
                             onClick={() => setSelectedSeasonNumber(s.season_number)}
-                            className={`flex-shrink-0 px-4 py-2 rounded-full text-[10px] font-bold border touch-manipulation ${
+                            className={`flex-shrink-0 px-4 py-2 rounded-full text-[10px] font-bold border ${
                               selectedSeasonNumber === s.season_number
                                 ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
                                 : 'bg-[#111827] border-[#1E293B] text-[#94A3B8]'
@@ -1098,8 +926,8 @@ export default function App() {
                     </div>
 
                     {seasonLoading ? (
-                      <div className="text-center py-8 text-xs text-[#64748B]">
-                        {lang === 'ar-SA' ? 'جاري تحميل الحلقات...' : 'Loading episodes...'}
+                      <div className="text-center py-6 text-xs text-[#64748B]">
+                        {lang === 'ar-SA' ? 'جاري التحميل...' : 'Loading...'}
                       </div>
                     ) : (
                       <div className="space-y-2">
@@ -1116,18 +944,11 @@ export default function App() {
                               }
                               alt={ep.name}
                               className="w-20 h-12 rounded-xl object-cover flex-shrink-0"
-                              loading="lazy"
                             />
                             <div className="min-w-0 flex-1 flex flex-col justify-center">
                               <h4 className="text-[10px] font-bold text-white truncate">
                                 {ep.episode_number}. {ep.name}
                               </h4>
-                              <p className="text-[9px] text-[#64748B] mt-1 line-clamp-1">
-                                {ep.overview || (lang === 'ar-SA' ? 'بدون ملخص' : 'No summary')}
-                              </p>
-                            </div>
-                            <div className="w-8 h-8 rounded-full bg-[#0F172A] self-center flex items-center justify-center text-[#60A5FA]">
-                              ▶
                             </div>
                           </div>
                         ))}
@@ -1136,38 +957,11 @@ export default function App() {
                   </div>
                 )}
 
-                {details?.credits?.cast?.length > 0 && (
-                  <div className="space-y-4">
-                    <SectionTitle title={lang === 'ar-SA' ? 'طاقم التمثيل' : 'Cast'} icon="●" />
-                    <div className="flex gap-3 overflow-x-auto scrollbar-none">
-                      {details.credits.cast.slice(0, 10).map((actor) => (
-                        <div key={actor.id} className="flex-shrink-0 w-20 text-center">
-                          <div className="w-16 h-16 mx-auto rounded-full overflow-hidden border border-[#1E293B] bg-[#111827]">
-                            <img
-                              src={
-                                actor.profile_path
-                                  ? `${IMAGE_BASE_URL}${actor.profile_path}`
-                                  : 'https://via.placeholder.com/100?text=Actor'
-                              }
-                              alt={actor.name}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          </div>
-                          <p className="text-[9px] font-bold text-white truncate mt-2">
-                            {actor.name}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="flex items-center gap-5 border-b border-[#1E293B]">
                     <button
                       onClick={() => setActiveDetailTab('similar')}
-                      className={`pb-3 text-[11px] font-bold touch-manipulation ${
+                      className={`pb-2 text-[11px] font-bold ${
                         activeDetailTab === 'similar'
                           ? 'text-[#3B82F6] border-b-2 border-[#3B82F6]'
                           : 'text-[#64748B]'
@@ -1177,7 +971,7 @@ export default function App() {
                     </button>
                     <button
                       onClick={() => setActiveDetailTab('recommendations')}
-                      className={`pb-3 text-[11px] font-bold touch-manipulation ${
+                      className={`pb-2 text-[11px] font-bold ${
                         activeDetailTab === 'recommendations'
                           ? 'text-[#3B82F6] border-b-2 border-[#3B82F6]'
                           : 'text-[#64748B]'
@@ -1198,7 +992,6 @@ export default function App() {
                         <MovieCard
                           key={item.id}
                           item={item}
-                          genresMap={genresMap}
                           onClick={() => handleOpenDetails(item, selectedItemType)}
                         />
                       ))}
@@ -1212,11 +1005,11 @@ export default function App() {
 
       {/* TRAILER MODAL */}
       {trailerKey && (
-        <div className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-3 backdrop-blur-md">
-          <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-[#1E293B] shadow-2xl">
+        <div className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-3">
+          <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-[#1E293B]">
             <button
               onClick={() => setTrailerKey(null)}
-              className="absolute top-2 right-2 bg-[#3B82F6] text-white w-8 h-8 rounded-full text-xs font-bold z-10 touch-manipulation"
+              className="absolute top-2 right-2 bg-[#3B82F6] text-white w-8 h-8 rounded-full text-xs font-bold z-10"
             >
               ✕
             </button>
@@ -1234,106 +1027,78 @@ export default function App() {
   );
 }
 
-/* SECTION TITLE */
-const SectionTitle = React.memo(({ title, icon }) => (
-  <div className="flex items-center gap-2.5">
-    <span className="w-1 h-5 rounded-full bg-[#3B82F6] shadow-md shadow-[#3B82F6]/30" />
+const SectionTitle = ({ title, icon }) => (
+  <div className="flex items-center gap-2">
+    <span className="w-1 h-4 rounded-full bg-[#3B82F6]" />
     <span className="text-sm font-black text-white">
       {icon} {title}
     </span>
   </div>
-));
-
-/* HORIZONTAL SECTION */
-const HorizontalSection = React.memo(
-  ({ title, icon, items, genresMap, loading, onItemClick, onViewAll, lang }) => (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <SectionTitle title={title} icon={icon} />
-        {onViewAll && (
-          <button
-            onClick={onViewAll}
-            className="text-[10px] text-[#60A5FA] font-bold active:scale-95 touch-manipulation"
-          >
-            {lang === 'ar-SA' ? 'عرض الكل ›' : 'See All ›'}
-          </button>
-        )}
-      </div>
-
-      {loading ? (
-        <div className="flex gap-3 overflow-x-auto scrollbar-none">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="w-[128px] h-[220px] bg-[#111827] rounded-2xl animate-pulse flex-shrink-0"
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1 will-change-transform">
-          {items.map((item) => (
-            <div key={item.id} className="w-[128px] flex-shrink-0">
-              <MovieCard item={item} genresMap={genresMap} onClick={() => onItemClick(item)} />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
 );
 
-/* MOVIE CARD */
-const MovieCard = React.memo(({ item, genresMap = {}, onClick }) => (
-  <div
-    onClick={onClick}
-    className="group cursor-pointer active:scale-[.97] transition touch-manipulation"
-  >
-    <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-[#111827] border border-[#1E293B] shadow-lg shadow-black/20">
+const HorizontalSection = ({ title, icon, items, loading, onItemClick, onViewAll, lang }) => (
+  <div className="space-y-3">
+    <div className="flex items-center justify-between">
+      <SectionTitle title={title} icon={icon} />
+      {onViewAll && (
+        <button onClick={onViewAll} className="text-[10px] text-[#60A5FA] font-bold">
+          {lang === 'ar-SA' ? 'عرض الكل ›' : 'See All ›'}
+        </button>
+      )}
+    </div>
+
+    {loading ? (
+      <div className="flex gap-3 overflow-x-auto scrollbar-none">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="w-[120px] h-[180px] bg-[#111827] rounded-2xl animate-pulse flex-shrink-0" />
+        ))}
+      </div>
+    ) : (
+      <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
+        {items.map((item) => (
+          <div key={item.id} className="w-[120px] flex-shrink-0">
+            <MovieCard item={item} onClick={() => onItemClick(item)} />
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
+const MovieCard = ({ item, onClick }) => (
+  <div onClick={onClick} className="cursor-pointer">
+    <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-[#111827] border border-[#1E293B]">
       {item.poster_path ? (
         <img
           src={`${IMAGE_BASE_URL}${item.poster_path}`}
           alt={item.title || item.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-          loading="lazy"
+          className="w-full h-full object-cover"
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center text-[#64748B] text-[9px]">
           No Image
         </div>
       )}
-      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/80 to-transparent" />
-      <div className="absolute top-2 right-2 bg-[#05070A]/80 backdrop-blur-md border border-white/10 px-2 py-1 rounded-full text-[9px] font-black text-white flex items-center gap-1">
+      <div className="absolute top-2 right-2 bg-[#05070A]/80 border border-white/10 px-2 py-0.5 rounded-full text-[8px] font-black text-white flex items-center gap-0.5">
         <span className="text-[#60A5FA]">★</span>
         <span>{item.vote_average ? item.vote_average.toFixed(1) : '7.5'}</span>
       </div>
     </div>
 
-    <div className="px-0.5 pt-2">
-      <h4 className="text-[11px] font-bold text-white truncate">{item.title || item.name}</h4>
-      <div className="flex items-center justify-between mt-1">
-        <p className="text-[9px] text-[#64748B]">
-          {item.release_date?.substring(0, 4) ||
-            item.first_air_date?.substring(0, 4) ||
-            '2026'}
-        </p>
-        <span className="text-[8px] text-[#475569]">HD</span>
-      </div>
+    <div className="pt-1.5">
+      <h4 className="text-[10px] font-bold text-white truncate">{item.title || item.name}</h4>
     </div>
   </div>
-));
+);
 
-/* NAV ITEM */
-const NavItem = React.memo(({ icon, label, active, onClick }) => (
+const NavItem = ({ icon, label, active, onClick }) => (
   <button
     onClick={onClick}
-    className={`relative min-w-[68px] h-14 rounded-2xl flex flex-col items-center justify-center gap-1 transition active:scale-95 touch-manipulation ${
-      active ? 'text-[#3B82F6]' : 'text-[#64748B] hover:text-[#CBD5E1]'
+    className={`flex flex-col items-center justify-center gap-0.5 transition ${
+      active ? 'text-[#3B82F6]' : 'text-[#64748B]'
     }`}
   >
-    {active && (
-      <div className="absolute top-0 w-8 h-0.5 rounded-full bg-[#3B82F6] shadow-lg shadow-[#3B82F6]" />
-    )}
-    <div className="w-5 h-5">{icon}</div>
+    <span className="text-base">{icon}</span>
     <span className="text-[9px] font-bold">{label}</span>
   </button>
-));
+);
