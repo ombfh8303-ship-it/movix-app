@@ -1,11 +1,11 @@
-Import React, { useState, useEffect, useCallback, useRef } from 'react';
-Import {
-  FetchTrending, fetchTopRated, fetchUpcomingOrPopular, searchMedia,
-  FetchDetails, fetchGenres, fetchByGenre, fetchByStudio,
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  fetchTrending, fetchTopRated, fetchUpcomingOrPopular, searchMedia,
+  fetchDetails, fetchGenres, fetchByGenre, fetchByStudio,
   IMAGE_BASE_URL, BACKDROP_BASE_URL
 } from './services/tmdb';
 
-Const STUDIOS = [
+const STUDIOS = [
   { id: 213, name: 'Netflix', logo: 'https://image.tmdb.org/t/p/w200/wwemzKW8219fCA3y023392.png' },
   { id: 2, name: 'Walt Disney', logo: 'https://image.tmdb.org/t/p/w200/wdrCwoL3Bx8pM32pP3C311.png' },
   { id: 420, name: 'Marvel Studios', logo: 'https://image.tmdb.org/t/p/w200/hU3A9R9fA420133.png' },
@@ -15,294 +15,293 @@ Const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// 🟢 سيرفرات المشاهدة المحدثة والشغالة حالياً بدون مشكلة ERR_NAME_NOT_RESOLVED
-Const WATCH_SERVERS = [
+const WATCH_SERVERS = [
   { 
-    Id: 'vidsrc_icu', 
-    Name: 'VidSrc ICU', 
-    GetUrl: (id, type, s, e) => type === 'tv' 
+    id: 'vidsrc_icu', 
+    name: 'VidSrc ICU', 
+    getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://vidsrc.icu/embed/tv/${id}/${s}/${e}` 
       : `https://vidsrc.icu/embed/movie/${id}` 
   },
   { 
-    Id: 'vidsrc_me', 
-    Name: 'VidSrc Me', 
-    GetUrl: (id, type, s, e) => type === 'tv' 
+    id: 'vidsrc_me', 
+    name: 'VidSrc Me', 
+    getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
       : `https://vidsrc.me/embed/movie?tmdb=${id}` 
   },
   { 
-    Id: 'autoembed', 
-    Name: 'AutoEmbed', 
-    GetUrl: (id, type, s, e) => type === 'tv' 
+    id: 'autoembed', 
+    name: 'AutoEmbed', 
+    getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://player.autoembed.cc/tv/${id}/${s}/${e}` 
       : `https://player.autoembed.cc/movie/${id}` 
   },
   { 
-    Id: 'smashystream', 
-    Name: 'SmashyStream', 
-    GetUrl: (id, type, s, e) => type === 'tv' 
+    id: 'smashystream', 
+    name: 'SmashyStream', 
+    getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${s}&episode=${e}` 
       : `https://embed.smashystream.com/playere.php?tmdb=${id}` 
   },
   { 
-    Id: 'multiembed', 
-    Name: 'MultiEmbed', 
-    GetUrl: (id, type, s, e) => type === 'tv' 
+    id: 'multiembed', 
+    name: 'MultiEmbed', 
+    getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}` 
       : `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` 
   },
   { 
-    Id: 'vidsrc_pm', 
-    Name: 'VidSrc PM', 
-    GetUrl: (id, type, s, e) => type === 'tv' 
+    id: 'vidsrc_pm', 
+    name: 'VidSrc PM', 
+    getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://vidsrc.pm/embed/tv/${id}/${s}/${e}` 
       : `https://vidsrc.pm/embed/movie/${id}` 
   },
   { 
-    Id: '2embed', 
-    Name: '2Embed', 
-    GetUrl: (id, type, s, e) => type === 'tv' 
+    id: '2embed', 
+    name: '2Embed', 
+    getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` 
       : `https://www.2embed.cc/embed/${id}` 
   }
 ];
 
-Export default function App() {
-  Const [activeTab, setActiveTab] = useState('home');
-  Const [lang, setLang] = useState('ar-SA');
-  Const [searchQuery, setSearchQuery] = useState('');
-  Const [loading, setLoading] = useState(false);
-  Const [loadingMore, setLoadingMore] = useState(false);
+export default function App() {
+  const [activeTab, setActiveTab] = useState('home');
+  const [lang, setLang] = useState('ar-SA');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   
-  Const [myList, setMyList] = useState(() => { 
-    Try { return JSON.parse(localStorage.getItem('movix_my_list')) || []; } catch { return []; } 
+  const [myList, setMyList] = useState(() => { 
+    try { return JSON.parse(localStorage.getItem('movix_my_list')) || []; } catch { return []; } 
   });
-  Const [watchHistory, setWatchHistory] = useState(() => { 
-    Try { return JSON.parse(localStorage.getItem('movix_watch_history')) || []; } catch { return []; } 
+  const [watchHistory, setWatchHistory] = useState(() => { 
+    try { return JSON.parse(localStorage.getItem('movix_watch_history')) || []; } catch { return []; } 
   });
 
-  Const [trendingList, setTrendingList] = useState([]);
-  Const [latestMoviesList, setLatestMoviesList] = useState([]);
-  Const [topRatedList, setTopRatedList] = useState([]);
-  Const [trendingTvList, setTrendingTvList] = useState([]);
-  Const [heroIndex, setHeroIndex] = useState(0);
-  Const [studioMoviesMap, setStudioMoviesMap] = useState({});
-  Const [gridItems, setGridItems] = useState([]);
-  Const [page, setPage] = useState(1);
-  Const [totalPages, setTotalPages] = useState(1);
-  Const [genres, setGenres] = useState([]);
+  const [trendingList, setTrendingList] = useState([]);
+  const [latestMoviesList, setLatestMoviesList] = useState([]);
+  const [topRatedList, setTopRatedList] = useState([]);
+  const [trendingTvList, setTrendingTvList] = useState([]);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [studioMoviesMap, setStudioMoviesMap] = useState({});
+  const [gridItems, setGridItems] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [genres, setGenres] = useState([]);
   
-  Const [selectedGenre, setSelectedGenre] = useState('');
-  Const [selectedStudio, setSelectedStudio] = useState(null);
-  Const [minRating, setMinRating] = useState(0);
-  Const [selectedYear, setSelectedYear] = useState('');
+  const [selectedGenre, setSelectedGenre] = useState('');
+  const [selectedStudio, setSelectedStudio] = useState(null);
+  const [minRating, setMinRating] = useState(0);
+  const [selectedYear, setSelectedYear] = useState('');
   
-  Const [tempGenre, setTempGenre] = useState('');
-  Const [tempMinRating, setTempMinRating] = useState(0);
-  Const [tempSelectedYear, setTempSelectedYear] = useState('');
-  Const [showFilterModal, setShowFilterModal] = useState(false);
+  const [tempGenre, setTempGenre] = useState('');
+  const [tempMinRating, setTempMinRating] = useState(0);
+  const [tempSelectedYear, setTempSelectedYear] = useState('');
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
-  Const [selectedItem, setSelectedItem] = useState(null);
-  Const [selectedItemType, setSelectedItemType] = useState('movie');
-  Const [details, setDetails] = useState(null);
-  Const [detailsLoading, setDetailsLoading] = useState(false);
-  Const [trailerKey, setTrailerKey] = useState(null);
-  Const [trailerLoading, setTrailerLoading] = useState(false);
-  Const [selectedSeasonNumber, setSelectedSeasonNumber] = useState(1);
-  Const [seasonDetails, setSeasonDetails] = useState(null);
-  Const [seasonLoading, setSeasonLoading] = useState(false);
-  Const [overviewExpanded, setOverviewExpanded] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedItemType, setSelectedItemType] = useState('movie');
+  const [details, setDetails] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [trailerKey, setTrailerKey] = useState(null);
+  const [trailerLoading, setTrailerLoading] = useState(false);
+  const [selectedSeasonNumber, setSelectedSeasonNumber] = useState(1);
+  const [seasonDetails, setSeasonDetails] = useState(null);
+  const [seasonLoading, setSeasonLoading] = useState(false);
+  const [overviewExpanded, setOverviewExpanded] = useState(false);
 
-  Const [activeServer, setActiveServer] = useState(WATCH_SERVERS[0]);
-  Const [selectedEpisodeNumber, setSelectedEpisodeNumber] = useState(1);
-  Const [isWatching, setIsWatching] = useState(false);
+  const [activeServer, setActiveServer] = useState(WATCH_SERVERS[0]);
+  const [selectedEpisodeNumber, setSelectedEpisodeNumber] = useState(1);
+  const [isWatching, setIsWatching] = useState(false);
 
-  Const searchTimer = useRef(null);
+  const searchTimer = useRef(null);
 
-  UseEffect(() => { try { localStorage.setItem('movix_my_list', JSON.stringify(myList)); } catch { } }, [myList]);
-  UseEffect(() => { try { localStorage.setItem('movix_watch_history', JSON.stringify(watchHistory)); } catch { } }, [watchHistory]);
+  useEffect(() => { try { localStorage.setItem('movix_my_list', JSON.stringify(myList)); } catch { } }, [myList]);
+  useEffect(() => { try { localStorage.setItem('movix_watch_history', JSON.stringify(watchHistory)); } catch { } }, [watchHistory]);
 
-  Const resetFilters = useCallback(() => {
-    SetSelectedGenre(''); setSelectedStudio(null); setSearchQuery('');
-    SetMinRating(0); setSelectedYear(''); setPage(1); setGridItems([]);
+  const resetFilters = useCallback(() => {
+    setSelectedGenre(''); setSelectedStudio(null); setSearchQuery('');
+    setMinRating(0); setSelectedYear(''); setPage(1); setGridItems([]);
   }, []);
 
-  UseEffect(() => {
-    Const type = activeTab === 'tv' ? 'tv' : 'movie';
-    FetchGenres(type, lang).then(x => setGenres(x || [])).catch(() => { });
+  useEffect(() => {
+    const type = activeTab === 'tv' ? 'tv' : 'movie';
+    fetchGenres(type, lang).then(x => setGenres(x || [])).catch(() => { });
   }, [activeTab, lang]);
 
-  UseEffect(() => {
-    If (activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear) {
-      SetLoading(true);
+  useEffect(() => {
+    if (activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear) {
+      setLoading(true);
       Promise.all([
-        FetchTrending('movie', 1, lang),
-        FetchUpcomingOrPopular('movie', 1, lang),
-        FetchTopRated('movie', 1, lang),
-        FetchTrending('tv', 1, lang)
+        fetchTrending('movie', 1, lang),
+        fetchUpcomingOrPopular('movie', 1, lang),
+        fetchTopRated('movie', 1, lang),
+        fetchTrending('tv', 1, lang)
       ]).then(([a, b, c, d]) => {
-        SetTrendingList(a?.results || []);
-        SetLatestMoviesList(b?.results || []);
-        SetTopRatedList(c?.results || []);
-        SetTrendingTvList(d?.results || []);
-        SetLoading(false);
+        setTrendingList(a?.results || []);
+        setLatestMoviesList(b?.results || []);
+        setTopRatedList(c?.results || []);
+        setTrendingTvList(d?.results || []);
+        setLoading(false);
       }).catch(() => setLoading(false));
 
       STUDIOS.forEach(s => {
-        Const type = (s.id === 213 || s.id === 49) ? 'tv' : 'movie';
-        FetchByStudio(type, s.id, 1, lang).then(r => {
-          SetStudioMoviesMap(p => ({ ...p, [s.id]: r?.results || [] }));
+        const type = (s.id === 213 || s.id === 49) ? 'tv' : 'movie';
+        fetchByStudio(type, s.id, 1, lang).then(r => {
+          setStudioMoviesMap(p => ({ ...p, [s.id]: r?.results || [] }));
         }).catch(() => { });
       });
     }
   }, [activeTab, searchQuery, selectedGenre, selectedStudio, minRating, selectedYear, lang]);
 
-  UseEffect(() => {
-    If (!trendingList.length) return;
-    Const t = setInterval(() => setHeroIndex(p => (p + 1) % Math.min(trendingList.length, 5)), 5000);
-    Return () => clearInterval(t);
+  useEffect(() => {
+    if (!trendingList.length) return;
+    const t = setInterval(() => setHeroIndex(p => (p + 1) % Math.min(trendingList.length, 5)), 5000);
+    return () => clearInterval(t);
   }, [trendingList]);
 
-  Const loadGridData = useCallback((pageNum = 1, append = false, query = searchQuery) => {
-    PageNum === 1 ? setLoading(true) : setLoadingMore(true);
-    Const type = activeTab === 'tv' ? 'tv' : 'movie';
-    Let promise;
-    If (query.trim()) promise = searchMedia(query, type, pageNum, lang);
-    Else if (selectedGenre) promise = fetchByGenre(type, selectedGenre, pageNum, lang);
-    Else if (selectedStudio) {
-      Const st = (selectedStudio.id === 213 || selectedStudio.id === 49) ? 'tv' : type;
-      Promise = fetchByStudio(st, selectedStudio.id, pageNum, lang);
+  const loadGridData = useCallback((pageNum = 1, append = false, query = searchQuery) => {
+    pageNum === 1 ? setLoading(true) : setLoadingMore(true);
+    const type = activeTab === 'tv' ? 'tv' : 'movie';
+    let promise;
+    if (query.trim()) promise = searchMedia(query, type, pageNum, lang);
+    else if (selectedGenre) promise = fetchByGenre(type, selectedGenre, pageNum, lang);
+    else if (selectedStudio) {
+      const st = (selectedStudio.id === 213 || selectedStudio.id === 49) ? 'tv' : type;
+      promise = fetchByStudio(st, selectedStudio.id, pageNum, lang);
     } else promise = fetchTrending(type, pageNum, lang);
 
-    Promise.then(data => {
-      Let results = data?.results || [];
-      If (minRating > 0) results = results.filter(x => (x.vote_average || 0) >= minRating);
-      If (selectedYear) results = results.filter(x => {
-        Const d = x.release_date || x.first_air_date || '';
-        Return d.startsWith(selectedYear);
+    promise.then(data => {
+      let results = data?.results || [];
+      if (minRating > 0) results = results.filter(x => (x.vote_average || 0) >= minRating);
+      if (selectedYear) results = results.filter(x => {
+        const d = x.release_date || x.first_air_date || '';
+        return d.startsWith(selectedYear);
       });
-      SetGridItems(p => append ? [...p, ...results] : results);
-      SetTotalPages(data?.total_pages || 1);
+      setGridItems(p => append ? [...p, ...results] : results);
+      setTotalPages(data?.total_pages || 1);
     }).catch(() => { }).finally(() => { setLoading(false); setLoadingMore(false); });
   }, [activeTab, selectedGenre, selectedStudio, minRating, selectedYear, lang, searchQuery]);
 
-  Const handleSearchChange = e => {
-    Const val = e.target.value;
-    SetSearchQuery(val); setSelectedGenre(''); setSelectedStudio(null);
-    ClearTimeout(searchTimer.current);
-    SearchTimer.current = setTimeout(() => {
-      SetPage(1); loadGridData(1, false, val);
+  const handleSearchChange = e => {
+    const val = e.target.value;
+    setSearchQuery(val); setSelectedGenre(''); setSelectedStudio(null);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      setPage(1); loadGridData(1, false, val);
     }, 400);
   };
 
-  UseEffect(() => {
-    If (activeTab !== 'home' || selectedGenre || selectedStudio || minRating || selectedYear) {
-      SetPage(1); loadGridData(1, false, searchQuery);
+  useEffect(() => {
+    if (activeTab !== 'home' || selectedGenre || selectedStudio || minRating || selectedYear) {
+      setPage(1); loadGridData(1, false, searchQuery);
     }
   }, [activeTab, selectedGenre, selectedStudio, minRating, selectedYear, lang, loadGridData, searchQuery]);
 
-  Const handleLoadMore = () => {
-    If (page < totalPages && !loadingMore) {
-      Const n = page + 1; setPage(n); loadGridData(n, true, searchQuery);
+  const handleLoadMore = () => {
+    if (page < totalPages && !loadingMore) {
+      const n = page + 1; setPage(n); loadGridData(n, true, searchQuery);
     }
   };
 
-  Const addToWatchHistory = useCallback((item, type = 'movie') => {
-    If (!item?.id) return;
-    SetWatchHistory(prev => {
-      Const ni = { ...item, media_type: item.media_type || type, watchedAt: Date.now() };
-      Const filtered = prev.filter(i => !(i.id === item.id && (i.media_type || type) === ni.media_type));
-      Return [ni, ...filtered].slice(0, 30);
+  const addToWatchHistory = useCallback((item, type = 'movie') => {
+    if (!item?.id) return;
+    setWatchHistory(prev => {
+      const ni = { ...item, media_type: item.media_type || type, watchedAt: Date.now() };
+      const filtered = prev.filter(i => !(i.id === item.id && (i.media_type || type) === ni.media_type));
+      return [ni, ...filtered].slice(0, 30);
     });
   }, []);
 
-  Const removeFromWatchHistory = useCallback(item => {
-    SetWatchHistory(p => p.filter(i => !(i.id === item.id && i.media_type === item.media_type)));
+  const removeFromWatchHistory = useCallback(item => {
+    setWatchHistory(p => p.filter(i => !(i.id === item.id && i.media_type === item.media_type)));
   }, []);
 
-  Const clearWatchHistory = useCallback(() => setWatchHistory([]), []);
+  const clearWatchHistory = useCallback(() => setWatchHistory([]), []);
 
-  UseEffect(() => {
-    If (!selectedItem) { setDetails(null); setIsWatching(false); return; }
-    SetOverviewExpanded(false); setDetailsLoading(true); setIsWatching(false);
-    FetchDetails(selectedItemType, selectedItem.id, lang).then(data => {
-      SetDetails(data);
-      If (selectedItemType === 'tv' && data?.seasons?.length) {
-        Const first = data.seasons.find(s => s.season_number > 0) || data.seasons[0];
-        SetSelectedSeasonNumber(first.season_number);
-        SetSelectedEpisodeNumber(1);
+  useEffect(() => {
+    if (!selectedItem) { setDetails(null); setIsWatching(false); return; }
+    setOverviewExpanded(false); setDetailsLoading(true); setIsWatching(false);
+    fetchDetails(selectedItemType, selectedItem.id, lang).then(data => {
+      setDetails(data);
+      if (selectedItemType === 'tv' && data?.seasons?.length) {
+        const first = data.seasons.find(s => s.season_number > 0) || data.seasons[0];
+        setSelectedSeasonNumber(first.season_number);
+        setSelectedEpisodeNumber(1);
       }
     }).catch(() => { }).finally(() => setDetailsLoading(false));
   }, [selectedItem, selectedItemType, lang]);
 
-  UseEffect(() => {
-    If (selectedItemType !== 'tv' || !selectedItem?.id) {
-      SetSeasonDetails(null); return;
+  useEffect(() => {
+    if (selectedItemType !== 'tv' || !selectedItem?.id) {
+      setSeasonDetails(null); return;
     }
-    SetSeasonLoading(true);
-    Fetch(`https://api.themoviedb.org/3/tv/${selectedItem.id}/season/${selectedSeasonNumber}?api_key=4289874cb3f960f477028fae98f0efd0&language=${lang}`)
-      .then(r => r.ok ? R.json() : { episodes: [] })
+    setSeasonLoading(true);
+    fetch(`https://api.themoviedb.org/3/tv/${selectedItem.id}/season/${selectedSeasonNumber}?api_key=4289874cb3f960f477028fae98f0efd0&language=${lang}`)
+      .then(r => r.ok ? r.json() : { episodes: [] })
       .then(setSeasonDetails).catch(() => setSeasonDetails({ episodes: [] })).finally(() => setSeasonLoading(false));
   }, [selectedItem, selectedItemType, selectedSeasonNumber, lang]);
 
-  Const getRealTrailer = useCallback(data => {
-    Const v = data?.videos?.results || [];
-    Return v.find(x => x.site === 'YouTube' && x.type === 'Trailer' && x.official === true)
+  const getRealTrailer = useCallback(data => {
+    const v = data?.videos?.results || [];
+    return v.find(x => x.site === 'YouTube' && x.type === 'Trailer' && x.official === true)
       || v.find(x => x.site === 'YouTube' && x.type === 'Trailer')
       || v.find(x => x.site === 'YouTube' && x.type === 'Teaser')
       || v.find(x => x.site === 'YouTube') || null;
   }, []);
 
-  Const handlePlayTrailer = useCallback(async (item, type = 'movie') => {
-    If (!item) return;
-    SetTrailerLoading(true);
-    Try {
-      Let data = details && details.id === item.id && selectedItemType === type ? Details : await fetchDetails(type, item.id, lang);
-      Const trailer = getRealTrailer(data);
-      If (trailer?.key) {
-        AddToWatchHistory(item, type);
-        SetTrailerKey(trailer.key);
+  const handlePlayTrailer = useCallback(async (item, type = 'movie') => {
+    if (!item) return;
+    setTrailerLoading(true);
+    try {
+      let data = details && details.id === item.id && selectedItemType === type ? details : await fetchDetails(type, item.id, lang);
+      const trailer = getRealTrailer(data);
+      if (trailer?.key) {
+        addToWatchHistory(item, type);
+        setTrailerKey(trailer.key);
       } else alert(lang === 'ar-SA' ? 'الإعلان الرسمي غير متوفر حالياً' : 'Official trailer is not available');
     } catch {
-      Alert(lang === 'ar-SA' ? 'حدث خطأ أثناء تحميل التريلر' : 'Error loading trailer');
+      alert(lang === 'ar-SA' ? 'حدث خطأ أثناء تحميل التريلر' : 'Error loading trailer');
     } finally { setTrailerLoading(false); }
   }, [details, selectedItemType, lang, getRealTrailer, addToWatchHistory]);
 
-  Const handleStartWatching = useCallback((epNum = 1) => {
-    If (!details) return;
-    SetSelectedEpisodeNumber(epNum);
-    SetIsWatching(true);
-    AddToWatchHistory(details, selectedItemType);
+  const handleStartWatching = useCallback((epNum = 1) => {
+    if (!details) return;
+    setSelectedEpisodeNumber(epNum);
+    setIsWatching(true);
+    addToWatchHistory(details, selectedItemType);
   }, [details, selectedItemType, addToWatchHistory]);
 
-  Const toggleMyList = useCallback((item, type = 'movie') => {
-    If (!item) return;
-    SetMyList(prev => {
-      Const exists = prev.some(i => i.id === item.id);
-      If (exists) return prev.filter(i => i.id !== item.id);
-      Return [...prev, { ...item, media_type: type }];
+  const toggleMyList = useCallback((item, type = 'movie') => {
+    if (!item) return;
+    setMyList(prev => {
+      const exists = prev.some(i => i.id === item.id);
+      if (exists) return prev.filter(i => i.id !== item.id);
+      return [...prev, { ...item, media_type: type }];
     });
   }, []);
 
-  Const isInMyList = useCallback(id => myList.some(i => i.id === id), [myList]);
+  const isInMyList = useCallback(id => myList.some(i => i.id === id), [myList]);
 
-  Const handleOpenDetails = useCallback((item, type = 'movie') => {
-    SetTrailerKey(null); setOverviewExpanded(false); setIsWatching(false);
-    Const itemType = item.media_type || type;
-    SetSelectedItemType(itemType); setSelectedItem(item);
+  const handleOpenDetails = useCallback((item, type = 'movie') => {
+    setTrailerKey(null); setOverviewExpanded(false); setIsWatching(false);
+    const itemType = item.media_type || type;
+    setSelectedItemType(itemType); setSelectedItem(item);
   }, []);
 
-  Const genresMap = genres.reduce((a, g) => (a[g.id] = g.name, a), {});
-  Const featuredItem = trendingList[heroIndex] || trendingList[0];
-  Const isHome = activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear;
+  const genresMap = genres.reduce((a, g) => (a[g.id] = g.name, a), {});
+  const featuredItem = trendingList[heroIndex] || trendingList[0];
+  const isHome = activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear;
 
-  Const currentEmbedUrl = details ? ActiveServer.getUrl(details.id, selectedItemType, selectedSeasonNumber, selectedEpisodeNumber) : '';
+  const currentEmbedUrl = details ? activeServer.getUrl(details.id, selectedItemType, selectedSeasonNumber, selectedEpisodeNumber) : '';
 
-  Return (
+  return (
     <div className="min-h-screen bg-[#05070A] text-[#F8FAFC] pb-24 font-sans max-w-md mx-auto relative select-none" dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}>
 
-      {/* الهيدر علوي */}
+      {/* الهيدر العلوي */}
       <header className="px-4 pt-5 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setActiveTab('home'); resetFilters(); }}>
           <div className="w-9 h-9 rounded-xl bg-[#3B82F6] flex items-center justify-center text-white text-sm font-black shadow-lg shadow-[#3B82F6]/30">▶</div>
@@ -350,7 +349,7 @@ Export default function App() {
               <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(to top,#05070A 0%,rgba(5,7,10,.55) 50%,rgba(5,7,10,.10) 100%)' }} />
               <div className="absolute bottom-5 inset-x-5 space-y-3">
                 <div className="flex items-center gap-2">
-                  <span className="bg-[#3B82F6] text-white px-2.5 py-1 rounded-full text-[9px] font-black">{featuredItem.genre_ids?.length ? GenresMap[featuredItem.genre_ids[0]] || 'مميز' : 'مميز'}</span>
+                  <span className="bg-[#3B82F6] text-white px-2.5 py-1 rounded-full text-[9px] font-black">{featuredItem.genre_ids?.length ? genresMap[featuredItem.genre_ids[0]] || 'مميز' : 'مميز'}</span>
                   <span className="text-[9px] text-[#CBD5E1] bg-black/30 border border-white/10 px-2 py-1 rounded-full backdrop-blur-md">جديد</span>
                 </div>
                 <h1 className="text-[28px] font-black text-white leading-tight truncate">{featuredItem.title || featuredItem.name}</h1>
@@ -389,10 +388,10 @@ Export default function App() {
           <div className="pt-5 border-t border-[#1E293B] space-y-8">
             <SectionTitle title={lang === 'ar-SA' ? 'شركات الإنتاج' : 'Production Studios'} icon="🏢" />
             {STUDIOS.map(s => {
-              Const items = studioMoviesMap[s.id] || [];
-              If (!items.length && !loading) return null;
-              Const type = (s.id === 213 || s.id === 49) ? 'tv' : 'movie';
-              Return <HorizontalSection key={s.id} title={s.name} icon="•" items={items} loading={loading} onItemClick={x => handleOpenDetails(x, type)} onViewAll={() => { setSelectedStudio(s); setActiveTab(type === 'tv' ? 'tv' : 'movies'); }} lang={lang} />;
+              const items = studioMoviesMap[s.id] || [];
+              if (!items.length && !loading) return null;
+              const type = (s.id === 213 || s.id === 49) ? 'tv' : 'movie';
+              return <HorizontalSection key={s.id} title={s.name} icon="•" items={items} loading={loading} onItemClick={x => handleOpenDetails(x, type)} onViewAll={() => { setSelectedStudio(s); setActiveTab(type === 'tv' ? 'tv' : 'movies'); }} lang={lang} />;
             })}
           </div>
         </div>}
@@ -417,7 +416,7 @@ Export default function App() {
         {(activeTab !== 'home' || searchQuery || selectedGenre || selectedStudio || minRating > 0 || selectedYear) && activeTab !== 'mylist' && activeTab !== 'history' &&
           <div className="space-y-5">
             <div className="flex items-end justify-between gap-3">
-              <h3 className="text-lg font-black text-white">{searchQuery ? (lang === 'ar-SA' ? 'نتائج البحث' : 'Search Results') : selectedStudio ? SelectedStudio.name : selectedGenre ? Genres.find(g => g.id === Number(selectedGenre))?.name : activeTab === 'movies' ? (lang === 'ar-SA' ? 'الأفلام' : 'Movies') : (lang === 'ar-SA' ? 'المسلسلات' : 'TV Series')}</h3>
+              <h3 className="text-lg font-black text-white">{searchQuery ? (lang === 'ar-SA' ? 'نتائج البحث' : 'Search Results') : selectedStudio ? selectedStudio.name : selectedGenre ? genres.find(g => g.id === Number(selectedGenre))?.name : activeTab === 'movies' ? (lang === 'ar-SA' ? 'الأفلام' : 'Movies') : (lang === 'ar-SA' ? 'المسلسلات' : 'TV Series')}</h3>
               {(selectedGenre || selectedStudio || minRating > 0 || selectedYear) && <button onClick={resetFilters} className="text-[9px] text-[#60A5FA] bg-[#3B82F6]/10 px-3 py-1.5 rounded-full border border-[#3B82F6]/20">{lang === 'ar-SA' ? 'إلغاء الفلتر' : 'Clear'}</button>}
             </div>
             {loading ? <div className="grid grid-cols-3 gap-3">{Array.from({ length: 9 }).map((_, i) => <div key={i} className="aspect-[2/3] bg-[#111827] rounded-2xl animate-pulse" />)}</div> : !gridItems.length ? <div className="text-center py-20 text-[#64748B] text-xs">{lang === 'ar-SA' ? 'لم يتم العثور على نتائج.' : 'No results found.'}</div> :
@@ -466,16 +465,15 @@ Export default function App() {
           <div className="pb-24">
             {isWatching ? (
               <div className="relative w-full aspect-video bg-black flex flex-col rounded-b-2xl overflow-hidden border-b border-[#1E293B]">
-                {/* 🟢 مشغل الـ iframe مع خصائص السماح اللازمة لمنع الحظر */}
                 <iframe
-                  Key={`${activeServer.id}-${details?.id}-${selectedSeasonNumber}-${selectedEpisodeNumber}`}
-                  Src={currentEmbedUrl}
-                  Title="Watch Server"
-                  ClassName="w-full h-full border-0"
-                  Allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                  Sandbox="allow-forms allow-pointer-lock allow-same-origin allow-scripts allow-top-navigation"
-                  AllowFullScreen
-                  ReferrerPolicy="no-referrer-when-downgrade"
+                  key={`${activeServer.id}-${details?.id}-${selectedSeasonNumber}-${selectedEpisodeNumber}`}
+                  src={currentEmbedUrl}
+                  title="Watch Server"
+                  className="w-full h-full border-0"
+                  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                  sandbox="allow-forms allow-pointer-lock allow-same-origin allow-scripts allow-top-navigation"
+                  allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
                 />
                 <div className="bg-[#0B1220] p-2 flex justify-between items-center text-[10px] text-[#94A3B8]">
                   <span>{lang === 'ar-SA' ? 'تواجه مشكلة في المشاهدة؟' : 'Trouble playing?'}</span>
@@ -508,9 +506,9 @@ Export default function App() {
                 <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
                   {WATCH_SERVERS.map(srv => (
                     <button
-                      Key={srv.id}
-                      OnClick={() => { setActiveServer(srv); setIsWatching(true); }}
-                      ClassName={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-bold border transition-all ${activeServer.id === srv.id ? 'bg-[#3B82F6] border-[#3B82F6] text-white shadow-md shadow-[#3B82F6]/30' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
+                      key={srv.id}
+                      onClick={() => { setActiveServer(srv); setIsWatching(true); }}
+                      className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-bold border transition-all ${activeServer.id === srv.id ? 'bg-[#3B82F6] border-[#3B82F6] text-white shadow-md shadow-[#3B82F6]/30' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
                     >
                       {srv.name}
                     </button>
@@ -527,9 +525,9 @@ Export default function App() {
                   <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
                     {details.seasons.filter(s => s.season_number > 0).map(s => (
                       <button
-                        Key={s.id}
-                        OnClick={() => setSelectedSeasonNumber(s.season_number)}
-                        ClassName={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-bold border transition-all ${selectedSeasonNumber === s.season_number ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
+                        key={s.id}
+                        onClick={() => setSelectedSeasonNumber(s.season_number)}
+                        className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-bold border transition-all ${selectedSeasonNumber === s.season_number ? 'bg-[#3B82F6] border-[#3B82F6] text-white' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
                       >
                         {lang === 'ar-SA' ? `الموسم ${s.season_number}` : `Season ${s.season_number}`}
                       </button>
@@ -543,9 +541,9 @@ Export default function App() {
                     <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
                       {seasonDetails?.episodes?.map(ep => (
                         <button
-                          Key={ep.id}
-                          OnClick={() => handleStartWatching(ep.episode_number)}
-                          ClassName={`p-3 rounded-xl border text-right transition-all flex flex-col justify-between ${selectedEpisodeNumber === ep.episode_number && isWatching ? 'bg-[#3B82F6]/20 border-[#3B82F6] text-white' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
+                          key={ep.id}
+                          onClick={() => handleStartWatching(ep.episode_number)}
+                          className={`p-3 rounded-xl border text-right transition-all flex flex-col justify-between ${selectedEpisodeNumber === ep.episode_number && isWatching ? 'bg-[#3B82F6]/20 border-[#3B82F6] text-white' : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8]'}`}
                         >
                           <span className="text-[11px] font-bold text-white line-clamp-1">{ep.episode_number}. {ep.name}</span>
                           <span className="text-[9px] text-[#64748B] mt-1">{ep.air_date || ''}</span>
@@ -561,8 +559,8 @@ Export default function App() {
                 <SectionTitle title={lang === 'ar-SA' ? 'القصة' : 'Overview'} icon="📖" />
                 <p className="text-xs text-[#94A3B8] leading-relaxed">
                   {details?.overview ? (
-                    OverviewExpanded || details.overview.length <= 150
-                      ? Details.overview
+                    overviewExpanded || details.overview.length <= 150
+                      ? details.overview
                       : `${details.overview.slice(0, 150)}... `
                   ) : (lang === 'ar-SA' ? 'لا يوجد وصف متوفر.' : 'No description available.')}
                   {details?.overview && details.overview.length > 150 && (
@@ -584,11 +582,11 @@ Export default function App() {
           <div className="relative w-full max-w-2xl aspect-video bg-black rounded-2xl overflow-hidden border border-[#1E293B] shadow-2xl">
             <button onClick={() => setTrailerKey(null)} className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/70 text-white flex items-center justify-center border border-white/10">✕</button>
             <iframe
-              Src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
-              Title="Trailer"
-              ClassName="w-full h-full border-0"
-              Allow="autoplay; encrypted-media; picture-in-picture"
-              AllowFullScreen
+              src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
+              title="Trailer"
+              className="w-full h-full border-0"
+              allow="autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
             />
           </div>
         </div>
@@ -599,8 +597,8 @@ Export default function App() {
 }
 
 // عناصر واجهة المستخدم المساعدة (UI Helpers)
-Function SectionTitle({ title, icon }) {
-  Return (
+function SectionTitle({ title, icon }) {
+  return (
     <div className="flex items-center gap-2">
       <span className="text-sm">{icon}</span>
       <h2 className="text-sm font-black tracking-wide text-white">{title}</h2>
@@ -608,11 +606,11 @@ Function SectionTitle({ title, icon }) {
   );
 }
 
-Function HorizontalSection({ title, icon, items, loading, onItemClick, onViewAll, lang }) {
-  If (loading) return <div className="h-44 bg-[#0F172A] rounded-2xl animate-pulse" />;
-  If (!items?.length) return null;
+function HorizontalSection({ title, icon, items, loading, onItemClick, onViewAll, lang }) {
+  if (loading) return <div className="h-44 bg-[#0F172A] rounded-2xl animate-pulse" />;
+  if (!items?.length) return null;
 
-  Return (
+  return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <SectionTitle title={title} icon={icon} />
@@ -629,11 +627,11 @@ Function HorizontalSection({ title, icon, items, loading, onItemClick, onViewAll
   );
 }
 
-Function MovieCard({ item, onClick }) {
-  Const title = item.title || item.name;
-  Const rating = item.vote_average ? Item.vote_average.toFixed(1) : null;
+function MovieCard({ item, onClick }) {
+  const title = item.title || item.name;
+  const rating = item.vote_average ? item.vote_average.toFixed(1) : null;
 
-  Return (
+  return (
     <div onClick={onClick} className="group cursor-pointer space-y-1.5 active:scale-95 transition-transform duration-150">
       <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-[#0F172A] border border-[#1E293B]">
         {item.poster_path ? (
@@ -652,16 +650,16 @@ Function MovieCard({ item, onClick }) {
   );
 }
 
-Function NavItem({ icon, label, active, onClick }) {
-  Const icons = {
-    Home: '🏠',
-    Movie: '🎬',
-    Tv: '📺',
-    History: '◷',
-    Heart: '♡'
+function NavItem({ icon, label, active, onClick }) {
+  const icons = {
+    home: '🏠',
+    movie: '🎬',
+    tv: '📺',
+    history: '◷',
+    heart: '♡'
   };
 
-  Return (
+  return (
     <button onClick={onClick} className={`flex flex-col items-center justify-center gap-1 w-14 h-12 rounded-2xl transition-all ${active ? 'text-[#3B82F6]' : 'text-[#64748B]'}`}>
       <span className="text-base">{icons[icon]}</span>
       <span className="text-[9px] font-bold">{label}</span>
