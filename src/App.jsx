@@ -15,14 +15,14 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// قائمة السيرفرات المحدثة بالكامل ببدائل مستقرة ومجربة بدون حظر HTTP
+// قائمة السيرفرات المحدثة ببدائل مستقرة ومجربة
 const WATCH_SERVERS = [
   { 
-    id: 'vidsrc_cc', 
-    name: 'VidSrc (سريع جداً + ترجمة)', 
+    id: 'vidsrc_pro', 
+    name: 'VidSrc Pro (سريع جداً + ترجمة)', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` 
-      : `https://vidsrc.cc/v2/embed/movie/${id}` 
+      ? `https://vidlink.pro/tv/${id}/${s}/${e}` 
+      : `https://vidlink.pro/movie/${id}` 
   },
   { 
     id: 'embed_su', 
@@ -39,25 +39,18 @@ const WATCH_SERVERS = [
       : `https://player.autoembed.cc/movie/${id}` 
   },
   { 
-    id: 'vidlink', 
-    name: 'VidLink (سيرفر احتياطي)', 
+    id: 'multiembed', 
+    name: 'MultiEmbed (سيرفر احتياطي قوي)', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidlink.pro/tv/${id}/${s}/${e}` 
-      : `https://vidlink.pro/movie/${id}` 
+      ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` 
+      : `https://multiembed.mov/?video_id=${id}&tmdb=1` 
   },
   { 
-    id: 'vidsrc_xyz', 
-    name: 'VidSrc.xyz (VIP)', 
+    id: 'vidsrc_to', 
+    name: 'VidSrc.to (VIP)', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
-      : `https://vidsrc.xyz/embed/movie?tmdb=${id}` 
-  },
-  { 
-    id: '2embed_cc', 
-    name: '2Embed (متعدد الجودات)', 
-    getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` 
-      : `https://www.2embed.cc/embed/${id}` 
+      ? `https://vidsrc.to/embed/tv/${id}/${s}/${e}` 
+      : `https://vidsrc.to/embed/movie/${id}` 
   }
 ];
 
@@ -508,7 +501,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* نافذة اختيار السيرفرات المنبثقة المطابقة للصور */}
+              {/* نافذة اختيار السيرفرات المنبثقة */}
               {showServerModal && (
                 <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
                   <div className="bg-white text-slate-900 rounded-[24px] w-full max-w-sm p-5 space-y-4 shadow-2xl animate-fade-in">
