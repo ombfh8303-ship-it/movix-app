@@ -15,18 +15,25 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// قائمة السيرفرات المحدثة ببدائل مستقرة ومجربة
+// قائمة السيرفرات المحدثة ببدائل تعمل ومستقرة
 const WATCH_SERVERS = [
   { 
-    id: 'vidsrc_pro', 
-    name: 'VidSrc Pro (سريع جداً + ترجمة)', 
+    id: 'vidlink_pro', 
+    name: 'VidLink Pro (سريع جداً + دعم للترجمة)', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://vidlink.pro/tv/${id}/${s}/${e}` 
       : `https://vidlink.pro/movie/${id}` 
   },
   { 
+    id: 'vidsrc_cc', 
+    name: 'VidSrc CC (جودة عالية HD)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` 
+      : `https://vidsrc.cc/v2/embed/movie/${id}` 
+  },
+  { 
     id: 'embed_su', 
-    name: 'EmbedSU (جودة عالية HD/4K)', 
+    name: 'EmbedSU (جودة ممتازة HD/4K)', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://embed.su/embed/tv/${id}/${s}/${e}` 
       : `https://embed.su/embed/movie/${id}` 
@@ -35,22 +42,36 @@ const WATCH_SERVERS = [
     id: 'autoembed', 
     name: 'AutoEmbed (تلقائي بدون إعلانات)', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://player.autoembed.cc/tv/${id}/${s}/${e}` 
-      : `https://player.autoembed.cc/movie/${id}` 
+      ? `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}` 
+      : `https://player.autoembed.cc/embed/movie/${id}` 
   },
   { 
-    id: 'multiembed', 
-    name: 'MultiEmbed (سيرفر احتياطي قوي)', 
+    id: 'vidsrc_xyz', 
+    name: 'VidSrc XYZ (سيرفر عالمي سريع)', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` 
-      : `https://multiembed.mov/?video_id=${id}&tmdb=1` 
+      ? `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
+      : `https://vidsrc.xyz/embed/movie?tmdb=${id}` 
   },
   { 
-    id: 'vidsrc_to', 
-    name: 'VidSrc.to (VIP)', 
+    id: 'vidsrc_icu', 
+    name: 'VidSrc ICU (احتياطي مستقر)', 
     getUrl: (id, type, s, e) => type === 'tv' 
-      ? `https://vidsrc.to/embed/tv/${id}/${s}/${e}` 
-      : `https://vidsrc.to/embed/movie/${id}` 
+      ? `https://vidsrc.icu/embed/tv/${id}/${s}/${e}` 
+      : `https://vidsrc.icu/embed/movie/${id}` 
+  },
+  { 
+    id: 'embed2', 
+    name: '2Embed (سيرفر احتياطي قوي)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` 
+      : `https://www.2embed.cc/embed/${id}` 
+  },
+  { 
+    id: 'smashystream', 
+    name: 'SmashyStream (خيارات متعددة)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://embed.smashystream.com/playere.php?tmdb=${id}&s=${s}&e=${e}` 
+      : `https://embed.smashystream.com/playere.php?tmdb=${id}` 
   }
 ];
 
@@ -514,7 +535,7 @@ export default function App() {
                       <button onClick={() => setShowServerModal(false)} className="text-slate-400 text-lg ml-2 font-bold">✕</button>
                     </div>
 
-                    <div className="space-y-2.5">
+                    <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
                       {WATCH_SERVERS.map(srv => (
                         <button
                           key={srv.id}
@@ -525,12 +546,12 @@ export default function App() {
                           }}
                           className={`w-full py-3.5 px-5 rounded-2xl text-xs font-bold flex items-center justify-between border transition-all ${
                             activeServer.id === srv.id
-                              ? 'bg-[#FFD8B3] border-[#FFB266] text-[#6B3A00] shadow-sm'
+                              ? 'bg-[#3B82F6] border-[#3B82F6] text-white shadow-sm'
                               : 'bg-[#F1F5F9] border-transparent text-slate-800 hover:bg-[#E2E8F0]'
                           }`}
                         >
                           <span>{srv.name}</span>
-                          <span className="text-slate-400 text-sm">🔒</span>
+                          <span className={activeServer.id === srv.id ? 'text-white' : 'text-slate-400'}>▶</span>
                         </button>
                       ))}
                     </div>
