@@ -130,13 +130,11 @@ export default function App() {
   const searchTimer = useRef(null);
   const playerRef = useRef(null);
 
-  // إظهار تنبيه 토스트 سريع
   const showToast = useCallback((msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
   }, []);
 
-  // دعم زر ESC لإغلاق النوافذ
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -271,20 +269,49 @@ export default function App() {
     }).catch(() => { }).finally(() => setDetailsLoading(false));
   }, [selectedItem, selectedItemType, lang]);
 
-  // جلب تفاصيل الموسم وتجديد قائمة الحلقات
+  // جلب تفاصيل الموسم وتجديد قائمة الحلقات (مع منشئ حلقات احتياطي مضمون)
   useEffect(() => {
     if (selectedItemType !== 'tv' || !selectedItem?.id) {
       setSeasonDetails(null); return;
     }
     setSeasonLoading(true);
-    fetch(`https://api.themoviedb.org/3/tv/${selectedItem.id}/season/${selectedSeasonNumber}?api_key=4289874cb3f960f477028fae98f0efd0&language=${lang}`)
-      .then(r => r.ok ? r.json() : { episodes: [] })
+    
+    const seasonUrl = `https://api.themoviedb.org/3/tv/${selectedItem.id}/season/${selectedSeasonNumber}?api_key=4289874cb3f960f477028fae98f0efd0&language=${lang}`;
+
+    fetch(seasonUrl)
+      .then(r => r.ok ? r.json() : null)
       .then(data => {
-        setSeasonDetails(data);
+        if (data && Array.isArray(data.episodes) && data.episodes.length > 0) {
+          setSeasonDetails(data);
+        } else {
+          // خيار احتياطي: توليد الحلقات تلقائياً من عدد حلقات الموسم المسجل في TMDB
+          const currentSeasonObj = details?.seasons?.find(s => s.season_number === selectedSeasonNumber);
+          const epCount = currentSeasonObj?.episode_count || 10;
+          const fallbackEpisodes = Array.from({ length: epCount }, (_, i) => ({
+            id: `fallback-${selectedSeasonNumber}-${i + 1}`,
+            episode_number: i + 1,
+            name: lang === 'ar-SA' ? `الحلقة ${i + 1}` : `Episode ${i + 1}`,
+            overview: '',
+            still_path: null
+          }));
+          setSeasonDetails({ episodes: fallbackEpisodes });
+        }
       })
-      .catch(() => setSeasonDetails({ episodes: [] }))
+      .catch(() => {
+        // خيار طوارئ في حالة انقطاع الاتصال
+        const currentSeasonObj = details?.seasons?.find(s => s.season_number === selectedSeasonNumber);
+        const epCount = currentSeasonObj?.episode_count || 10;
+        const fallbackEpisodes = Array.from({ length: epCount }, (_, i) => ({
+          id: `fallback-${selectedSeasonNumber}-${i + 1}`,
+          episode_number: i + 1,
+          name: lang === 'ar-SA' ? `الحلقة ${i + 1}` : `Episode ${i + 1}`,
+          overview: '',
+          still_path: null
+        }));
+        setSeasonDetails({ episodes: fallbackEpisodes });
+      })
       .finally(() => setSeasonLoading(false));
-  }, [selectedItem, selectedItemType, selectedSeasonNumber, lang]);
+  }, [selectedItem, selectedItemType, selectedSeasonNumber, lang, details]);
 
   const getRealTrailer = useCallback(data => {
     const v = data?.videos?.results || [];
@@ -349,7 +376,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#05070A] text-[#F8FAFC] pb-28 font-sans max-w-md mx-auto relative select-none scroll-smooth" dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}>
 
-      {/* أنماط مدمجة وإرشادات الحركة والتمرير */}
       <style>{`
         .scrollbar-none::-webkit-scrollbar { display: none; }
         .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
@@ -592,7 +618,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* نافذة اختيار السيرفرات المنبثقة (Dark Glassmorphic Modal) */}
+              {/* نافذة اختيار السيرفرات المنبثقة */}
               {showServerModal && (
                 <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
                   <div className="bg-[#0F172A] border border-[#1E293B] text-white rounded-[24px] w-full max-w-sm p-5 space-y-4 shadow-2xl animate-fade-in">
@@ -654,15 +680,15 @@ export default function App() {
                     ))}
                   </div>
 
-                  {/* قائمة الحلقات المحسنة */}
+                  {/* قائمة الحلقات المحسنة ومعالجة قائمة الحلقات الفارغة */}
                   {seasonLoading ? (
                     <div className="py-12 text-center text-xs text-[#64748B] animate-pulse flex flex-col items-center justify-center gap-2">
                       <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
                       <span>{lang === 'ar-SA' ? 'جاري تحميل حلقات الموسم...' : 'Loading season episodes...'}</span>
                     </div>
-                  ) : (
+                  ) : seasonDetails?.episodes?.length > 0 ? (
                     <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1 scrollbar-none">
-                      {seasonDetails?.episodes?.map(ep => (
+                      {seasonDetails.episodes.map(ep => (
                         <div
                           key={ep.id}
                           onClick={() => handleStartWatching(ep.episode_number)}
@@ -702,6 +728,10 @@ export default function App() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center text-xs text-[#64748B] bg-[#0F172A] border border-[#1E293B] rounded-2xl">
+                      {lang === 'ar-SA' ? 'لا توجد حلقات متاحة لهذا الموسم.' : 'No episodes found for this season.'}
                     </div>
                   )}
                 </div>
