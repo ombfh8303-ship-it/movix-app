@@ -15,11 +15,11 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// قائمة السيرفرات المحدثة ببدائل تعمل ومستقرة
+// قائمة السيرفرات السريعة والمحدثة
 const WATCH_SERVERS = [
   { 
     id: 'vidlink_pro', 
-    name: 'VidLink Pro (سريع جداً + دعم للترجمة)', 
+    name: 'VidLink Pro (سريع جداً + ترجمة)', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://vidlink.pro/tv/${id}/${s}/${e}` 
       : `https://vidlink.pro/movie/${id}` 
@@ -40,14 +40,14 @@ const WATCH_SERVERS = [
   },
   { 
     id: 'autoembed', 
-    name: 'AutoEmbed (تلقائي بدون إعلانات)', 
+    name: 'AutoEmbed (تلقائي خفيف)', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}` 
       : `https://player.autoembed.cc/embed/movie/${id}` 
   },
   { 
     id: 'vidsrc_xyz', 
-    name: 'VidSrc XYZ (سيرفر عالمي سريع)', 
+    name: 'VidSrc XYZ (سيرفر عالمي)', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
       : `https://vidsrc.xyz/embed/movie?tmdb=${id}` 
@@ -61,7 +61,7 @@ const WATCH_SERVERS = [
   },
   { 
     id: 'embed2', 
-    name: '2Embed (سيرفر احتياطي قوي)', 
+    name: '2Embed (سيرفر احتياطي)', 
     getUrl: (id, type, s, e) => type === 'tv' 
       ? `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}` 
       : `https://www.2embed.cc/embed/${id}` 
@@ -81,6 +81,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
   
   const [myList, setMyList] = useState(() => { 
     try { return JSON.parse(localStorage.getItem('movix_my_list')) || []; } catch { return []; } 
@@ -129,12 +130,33 @@ export default function App() {
   const searchTimer = useRef(null);
   const playerRef = useRef(null);
 
+  // إظهار تنبيه 토스트 سريع
+  const showToast = useCallback((msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 2500);
+  }, []);
+
+  // دعم زر ESC لإغلاق النوافذ
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (showServerModal) setShowServerModal(false);
+        else if (showFilterModal) setShowFilterModal(false);
+        else if (trailerKey) setTrailerKey(null);
+        else if (selectedItem) setSelectedItem(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showServerModal, showFilterModal, trailerKey, selectedItem]);
+
   useEffect(() => { try { localStorage.setItem('movix_my_list', JSON.stringify(myList)); } catch { } }, [myList]);
   useEffect(() => { try { localStorage.setItem('movix_watch_history', JSON.stringify(watchHistory)); } catch { } }, [watchHistory]);
 
   const resetFilters = useCallback(() => {
     setSelectedGenre(''); setSelectedStudio(null); setSearchQuery('');
     setMinRating(0); setSelectedYear(''); setPage(1); setGridItems([]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   useEffect(() => {
@@ -228,9 +250,13 @@ export default function App() {
 
   const removeFromWatchHistory = useCallback(item => {
     setWatchHistory(p => p.filter(i => !(i.id === item.id && i.media_type === item.media_type)));
-  }, []);
+    showToast(lang === 'ar-SA' ? 'تم الحذف من سجل المشاهدة' : 'Removed from history');
+  }, [lang, showToast]);
 
-  const clearWatchHistory = useCallback(() => setWatchHistory([]), []);
+  const clearWatchHistory = useCallback(() => {
+    setWatchHistory([]);
+    showToast(lang === 'ar-SA' ? 'تم مسح سجل المشاهدة بالكامل' : 'Watch history cleared');
+  }, [lang, showToast]);
 
   useEffect(() => {
     if (!selectedItem) { setDetails(null); setIsWatching(false); return; }
@@ -245,7 +271,7 @@ export default function App() {
     }).catch(() => { }).finally(() => setDetailsLoading(false));
   }, [selectedItem, selectedItemType, lang]);
 
-  // جلب تفاصيل الموسم وتجديد قリスト الحلقات
+  // جلب تفاصيل الموسم وتجديد قائمة الحلقات
   useEffect(() => {
     if (selectedItemType !== 'tv' || !selectedItem?.id) {
       setSeasonDetails(null); return;
@@ -297,10 +323,14 @@ export default function App() {
     if (!item) return;
     setMyList(prev => {
       const exists = prev.some(i => i.id === item.id);
-      if (exists) return prev.filter(i => i.id !== item.id);
+      if (exists) {
+        showToast(lang === 'ar-SA' ? 'تمت إزالته من قائمتي' : 'Removed from My List');
+        return prev.filter(i => i.id !== item.id);
+      }
+      showToast(lang === 'ar-SA' ? 'تمت إضافته إلى قائمتي' : 'Added to My List');
       return [...prev, { ...item, media_type: type }];
     });
-  }, []);
+  }, [lang, showToast]);
 
   const isInMyList = useCallback(id => myList.some(i => i.id === id), [myList]);
 
@@ -319,13 +349,21 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#05070A] text-[#F8FAFC] pb-28 font-sans max-w-md mx-auto relative select-none scroll-smooth" dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}>
 
-      {/* أنماط بسيطة مدمجة لتنعيم التنقل */}
+      {/* أنماط مدمجة وإرشادات الحركة والتمرير */}
       <style>{`
         .scrollbar-none::-webkit-scrollbar { display: none; }
         .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
       `}</style>
+
+      {/* التنبيهات العائمة Toast */}
+      {toastMessage && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] bg-[#3B82F6] text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-2xl border border-white/20 animate-fade-in flex items-center gap-2">
+          <span>✨</span>
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
       {/* الهيدر العلوي */}
       <header className="px-4 pt-5 pb-2 flex items-center justify-between">
@@ -348,9 +386,22 @@ export default function App() {
 
       {/* شريط البحث */}
       <div className="px-4 pt-3">
-        <div className="relative">
+        <div className="relative flex items-center">
           <div className="absolute inset-y-0 left-0 w-10 flex items-center justify-center pointer-events-none text-[#64748B]">🔍</div>
-          <input value={searchQuery} onChange={handleSearchChange} placeholder={lang === 'ar-SA' ? 'ابحث عن فيلم، مسلسل، ممثل...' : 'Search movies, series, actors...'} className="w-full h-12 bg-[#0F172A] text-white placeholder-[#64748B] border border-[#1E293B] focus:border-[#3B82F6] px-4 rounded-2xl text-xs outline-none pl-10 transition-all" />
+          <input 
+            value={searchQuery} 
+            onChange={handleSearchChange} 
+            placeholder={lang === 'ar-SA' ? 'ابحث عن فيلم، مسلسل، ممثل...' : 'Search movies, series, actors...'} 
+            className="w-full h-12 bg-[#0F172A] text-white placeholder-[#64748B] border border-[#1E293B] focus:border-[#3B82F6] px-4 rounded-2xl text-xs outline-none pl-10 pr-9 transition-all" 
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => { setSearchQuery(''); loadGridData(1, false, ''); }} 
+              className="absolute right-3 text-[#64748B] hover:text-white text-xs font-bold"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
@@ -453,7 +504,7 @@ export default function App() {
           </div>}
       </main>
 
-      {/* شريط التنقل السفلي الحديث المطور Navigation Bar */}
+      {/* شريط التنقل السفلي */}
       <div className="fixed bottom-4 inset-x-3 mx-auto max-w-md z-40">
         <nav className="h-[72px] bg-[#0A0F1D]/90 backdrop-blur-2xl border border-[#1E293B]/80 rounded-[28px] flex items-center justify-around px-3 shadow-2xl shadow-black/80">
           <NavItem icon="home" label={lang === 'ar-SA' ? 'الرئيسية' : 'Home'} active={activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear} onClick={() => { setActiveTab('home'); resetFilters(); }} />
@@ -527,34 +578,34 @@ export default function App() {
                 <button onClick={() => toggleMyList(details, selectedItemType)} className="h-12 w-12 bg-[#111827] border border-[#1E293B] rounded-2xl text-white text-lg flex items-center justify-center active:scale-95 transition-all">{isInMyList(details?.id) ? '✓' : '＋'}</button>
               </div>
 
-              {/* اختيار سيرفر المشاهدة عبر زر منبثق (Modal Pop-up) */}
+              {/* اختيار سيرفر المشاهدة */}
               <div className="space-y-3">
                 <button 
                   onClick={() => setShowServerModal(true)} 
                   className="w-full h-12 bg-[#0F172A] border border-[#1E293B] text-white rounded-2xl font-bold text-xs flex items-center justify-between px-4 active:scale-95 transition-all"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 truncate">
                     <span>🌐</span>
-                    <span>{lang === 'ar-SA' ? 'السيرفر الحالي:' : 'Current Server:'} <strong className="text-[#3B82F6]">{activeServer.name}</strong></span>
+                    <span className="truncate">{lang === 'ar-SA' ? 'السيرفر الحالي:' : 'Current Server:'} <strong className="text-[#3B82F6]">{activeServer.name}</strong></span>
                   </div>
-                  <span className="text-xs bg-[#3B82F6]/20 text-[#60A5FA] px-2.5 py-1 rounded-lg">⚙ {lang === 'ar-SA' ? 'تغيير السيرفر' : 'Change Server'}</span>
+                  <span className="text-xs bg-[#3B82F6]/20 text-[#60A5FA] px-2.5 py-1 rounded-lg flex-shrink-0">⚙ {lang === 'ar-SA' ? 'تغيير' : 'Change'}</span>
                 </button>
               </div>
 
-              {/* نافذة اختيار السيرفرات المنبثقة */}
+              {/* نافذة اختيار السيرفرات المنبثقة (Dark Glassmorphic Modal) */}
               {showServerModal && (
                 <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-                  <div className="bg-white text-slate-900 rounded-[24px] w-full max-w-sm p-5 space-y-4 shadow-2xl animate-fade-in">
+                  <div className="bg-[#0F172A] border border-[#1E293B] text-white rounded-[24px] w-full max-w-sm p-5 space-y-4 shadow-2xl animate-fade-in">
                     <div className="flex justify-between items-start">
-                      <p className="text-xs font-bold text-slate-600 leading-relaxed">
+                      <p className="text-xs font-bold text-[#94A3B8] leading-relaxed">
                         {lang === 'ar-SA' 
-                          ? 'إذا لم يعمل السيرفر الحالي، يُرجى تجربة سيرفر آخر من القائمة أدناه.'
-                          : 'If the selected server isn\'t working, try another one below.'}
+                          ? 'إذا لم يعمل السيرفر الحالي، يُرجى تجربة سيرفر آخر من القائمة أدناه:'
+                          : 'If the selected server isn\'t working, try another one below:'}
                       </p>
-                      <button onClick={() => setShowServerModal(false)} className="text-slate-400 text-lg ml-2 font-bold">✕</button>
+                      <button onClick={() => setShowServerModal(false)} className="text-[#94A3B8] hover:text-white text-lg ml-2 font-bold">✕</button>
                     </div>
 
-                    <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+                    <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1 scrollbar-none">
                       {WATCH_SERVERS.map(srv => (
                         <button
                           key={srv.id}
@@ -563,14 +614,14 @@ export default function App() {
                             setIsWatching(true);
                             setShowServerModal(false);
                           }}
-                          className={`w-full py-3.5 px-5 rounded-2xl text-xs font-bold flex items-center justify-between border transition-all ${
+                          className={`w-full py-3.5 px-4 rounded-2xl text-xs font-bold flex items-center justify-between border transition-all ${
                             activeServer.id === srv.id
-                              ? 'bg-[#3B82F6] border-[#3B82F6] text-white shadow-sm'
-                              : 'bg-[#F1F5F9] border-transparent text-slate-800 hover:bg-[#E2E8F0]'
+                              ? 'bg-[#3B82F6] border-[#3B82F6] text-white shadow-md shadow-[#3B82F6]/25'
+                              : 'bg-[#05070A] border-[#1E293B] text-[#CBD5E1] hover:border-[#334155]'
                           }`}
                         >
                           <span>{srv.name}</span>
-                          <span className={activeServer.id === srv.id ? 'text-white' : 'text-slate-400'}>▶</span>
+                          <span className={activeServer.id === srv.id ? 'text-white' : 'text-[#64748B]'}>▶</span>
                         </button>
                       ))}
                     </div>
@@ -578,7 +629,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* مواسم وحلقات المسلسلات - تصميم مطور وتفاعلي */}
+              {/* مواسم وحلقات المسلسلات */}
               {selectedItemType === 'tv' && details?.seasons?.length > 0 && (
                 <div className="space-y-4 pt-4 border-t border-[#1E293B]">
                   <SectionTitle title={lang === 'ar-SA' ? 'المواسم والحلقات' : 'Seasons & Episodes'} icon="📺" />
@@ -603,7 +654,7 @@ export default function App() {
                     ))}
                   </div>
 
-                  {/* قائمة الحلقات المحسنة بأغلفة الحلقات والتفاصيل */}
+                  {/* قائمة الحلقات المحسنة */}
                   {seasonLoading ? (
                     <div className="py-12 text-center text-xs text-[#64748B] animate-pulse flex flex-col items-center justify-center gap-2">
                       <div className="w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
@@ -621,7 +672,6 @@ export default function App() {
                               : 'bg-[#0F172A] border-[#1E293B] text-[#94A3B8] hover:border-[#334155]'
                           }`}
                         >
-                          {/* غلاف/صورة الحلقة */}
                           <div className="relative w-24 h-16 rounded-xl overflow-hidden bg-[#05070A] flex-shrink-0 border border-white/5 flex items-center justify-center">
                             {ep.still_path ? (
                               <img 
@@ -638,7 +688,6 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* تفاصيل الحلقة */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1 mb-1">
                               <span className="text-[10px] font-bold text-[#3B82F6] bg-[#3B82F6]/10 px-2 py-0.5 rounded-md">
@@ -658,7 +707,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* القصة والتفاصيل - بخط أكبر وأوضح وبحاوية مميزة */}
+              {/* القصة والتفاصيل */}
               <div className="space-y-3 pt-4 border-t border-[#1E293B]">
                 <SectionTitle title={lang === 'ar-SA' ? 'القصة والتفاصيل' : 'Overview & Details'} icon="📖" />
                 <div className="bg-[#0F172A]/80 border border-[#1E293B] p-4 rounded-2xl leading-relaxed">
@@ -679,6 +728,28 @@ export default function App() {
                   )}
                 </div>
               </div>
+
+              {/* طاقم التمثيل (Cast & Crew) */}
+              {details?.credits?.cast?.length > 0 && (
+                <div className="space-y-3 pt-4 border-t border-[#1E293B]">
+                  <SectionTitle title={lang === 'ar-SA' ? 'طاقم التمثيل' : 'Cast & Crew'} icon="👥" />
+                  <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2">
+                    {details.credits.cast.slice(0, 10).map(actor => (
+                      <div key={actor.id} className="flex-shrink-0 w-20 text-center space-y-1">
+                        <div className="w-16 h-16 mx-auto rounded-full overflow-hidden bg-[#0F172A] border border-[#1E293B]">
+                          {actor.profile_path ? (
+                            <img src={`${IMAGE_BASE_URL}${actor.profile_path}`} alt={actor.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs text-[#64748B]">👤</div>
+                          )}
+                        </div>
+                        <p className="text-[10px] font-bold text-white truncate">{actor.name}</p>
+                        <p className="text-[8px] text-[#64748B] truncate">{actor.character}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
             </div>
           </div>
@@ -705,7 +776,7 @@ export default function App() {
   );
 }
 
-// عناصر واجهة المستخدم المساعدة المعززة بالأداء (UI Helpers)
+// عناصر واجهة المستخدم المساعدة (UI Helpers)
 const SectionTitle = memo(function SectionTitle({ title, icon }) {
   return (
     <div className="flex items-center gap-2">
@@ -759,7 +830,6 @@ const MovieCard = memo(function MovieCard({ item, onClick }) {
   );
 });
 
-// أزرار التنقل السفلي الأنيقة والعصرية (Modern Bottom Nav Item)
 const NavItem = memo(function NavItem({ icon, label, active, onClick }) {
   const icons = {
     home: (
