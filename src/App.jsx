@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import {
   fetchTrending, fetchTopRated, fetchUpcomingOrPopular, searchMedia,
   fetchDetails, fetchGenres, fetchByGenre, fetchByStudio,
@@ -15,8 +15,9 @@ const STUDIOS = [
   { id: 4, name: 'Paramount', logo: 'https://image.tmdb.org/t/p/w200/420Paramount.png' }
 ];
 
-// قائمة السيرفرات السريعة والمحدثة
+// قائمة السيرفرات كاملة (السيرفرات القديمة + السيرفرات الجديدة الداعمة للترجمة)
 const WATCH_SERVERS = [
+  // --- سيرفرات حديثة تدعم الترجمة العربية بامتياز ---
   { 
     id: 'vidlink_pro', 
     name: 'VidLink Pro (سريع جداً + ترجمة)', 
@@ -24,6 +25,42 @@ const WATCH_SERVERS = [
       ? `https://vidlink.pro/tv/${id}/${s}/${e}` 
       : `https://vidlink.pro/movie/${id}` 
   },
+  { 
+    id: 'vidbinge', 
+    name: 'VidBinge (ترجمة تلقائية متعددة اللغات)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://vidbinge.dev/embed/tv/${id}/${s}/${e}` 
+      : `https://vidbinge.dev/embed/movie/${id}` 
+  },
+  { 
+    id: 'vidsrc_pro', 
+    name: 'VidSrc Pro (ترجمة احترافية HD)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://vidsrc.pro/embed/tv/${id}/${s}/${e}` 
+      : `https://vidsrc.pro/embed/movie/${id}` 
+  },
+  { 
+    id: 'multiembed', 
+    name: 'MultiEmbed (يدعم ترجمات عربية)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}` 
+      : `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` 
+  },
+  { 
+    id: 'autoembed_co', 
+    name: 'AutoEmbed Co (سريع + ترجمة)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://autoembed.co/tv/tmdb/${id}-${s}-${e}` 
+      : `https://autoembed.co/movie/tmdb/${id}` 
+  },
+  { 
+    id: 'vidsrc_me', 
+    name: 'VidSrc Me (يدعم الترجمة)', 
+    getUrl: (id, type, s, e) => type === 'tv' 
+      ? `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` 
+      : `https://vidsrc.me/embed/movie?tmdb=${id}` 
+  },
+  // --- السيرفرات السابقة (موجودة بالكامل دون حذف) ---
   { 
     id: 'vidsrc_cc', 
     name: 'VidSrc CC (جودة عالية HD)', 
@@ -126,6 +163,7 @@ export default function App() {
   const [selectedEpisodeNumber, setSelectedEpisodeNumber] = useState(1);
   const [isWatching, setIsWatching] = useState(false);
   const [showServerModal, setShowServerModal] = useState(false);
+  const [iframeLoading, setIframeLoading] = useState(true);
 
   const searchTimer = useRef(null);
   const playerRef = useRef(null);
@@ -134,6 +172,16 @@ export default function App() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
   }, []);
+
+  // تحسين التفاعل وقفل التمرير عند فتح القوائم المنبثقة لسلاسة الموقع
+  useEffect(() => {
+    if (selectedItem || showFilterModal || showServerModal || trailerKey) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [selectedItem, showFilterModal, showServerModal, trailerKey]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -222,7 +270,7 @@ export default function App() {
     clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
       setPage(1); loadGridData(1, false, val);
-    }, 400);
+    }, 350);
   };
 
   useEffect(() => {
@@ -269,7 +317,6 @@ export default function App() {
     }).catch(() => { }).finally(() => setDetailsLoading(false));
   }, [selectedItem, selectedItemType, lang]);
 
-  // جلب تفاصيل الموسم وتجديد قائمة الحلقات (مع منشئ حلقات احتياطي مضمون)
   useEffect(() => {
     if (selectedItemType !== 'tv' || !selectedItem?.id) {
       setSeasonDetails(null); return;
@@ -284,7 +331,6 @@ export default function App() {
         if (data && Array.isArray(data.episodes) && data.episodes.length > 0) {
           setSeasonDetails(data);
         } else {
-          // خيار احتياطي: توليد الحلقات تلقائياً من عدد حلقات الموسم المسجل في TMDB
           const currentSeasonObj = details?.seasons?.find(s => s.season_number === selectedSeasonNumber);
           const epCount = currentSeasonObj?.episode_count || 10;
           const fallbackEpisodes = Array.from({ length: epCount }, (_, i) => ({
@@ -298,7 +344,6 @@ export default function App() {
         }
       })
       .catch(() => {
-        // خيار طوارئ في حالة انقطاع الاتصال
         const currentSeasonObj = details?.seasons?.find(s => s.season_number === selectedSeasonNumber);
         const epCount = currentSeasonObj?.episode_count || 10;
         const fallbackEpisodes = Array.from({ length: epCount }, (_, i) => ({
@@ -338,6 +383,7 @@ export default function App() {
 
   const handleStartWatching = useCallback((epNum = 1) => {
     if (!details) return;
+    setIframeLoading(true);
     setSelectedEpisodeNumber(epNum);
     setIsWatching(true);
     addToWatchHistory(details, selectedItemType);
@@ -367,11 +413,14 @@ export default function App() {
     setSelectedItemType(itemType); setSelectedItem(item);
   }, []);
 
-  const genresMap = genres.reduce((a, g) => (a[g.id] = g.name, a), {});
-  const featuredItem = trendingList[heroIndex] || trendingList[0];
+  // استخدام useMemo لتحسين أداء عمليات العمليات الثقيلة وسلاسة التطبيق
+  const genresMap = useMemo(() => genres.reduce((a, g) => (a[g.id] = g.name, a), {}), [genres]);
+  const featuredItem = useMemo(() => trendingList[heroIndex] || trendingList[0], [trendingList, heroIndex]);
   const isHome = activeTab === 'home' && !searchQuery && !selectedGenre && !selectedStudio && !minRating && !selectedYear;
 
-  const currentEmbedUrl = details ? activeServer.getUrl(details.id, selectedItemType, selectedSeasonNumber, selectedEpisodeNumber) : '';
+  const currentEmbedUrl = useMemo(() => {
+    return details ? activeServer.getUrl(details.id, selectedItemType, selectedSeasonNumber, selectedEpisodeNumber) : '';
+  }, [details, activeServer, selectedItemType, selectedSeasonNumber, selectedEpisodeNumber]);
 
   return (
     <div className="min-h-screen bg-[#05070A] text-[#F8FAFC] pb-28 font-sans max-w-md mx-auto relative select-none scroll-smooth" dir={lang === 'ar-SA' ? 'rtl' : 'ltr'}>
@@ -380,7 +429,8 @@ export default function App() {
         .scrollbar-none::-webkit-scrollbar { display: none; }
         .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-fade-in { animation: fadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .gpu-accelerated { transform: translateZ(0); backface-visibility: hidden; }
       `}</style>
 
       {/* التنبيهات العائمة Toast */}
@@ -435,7 +485,7 @@ export default function App() {
 
         {/* التصنيفات السريعة */}
         {isHome && genres.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
+          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1 gpu-accelerated">
             {genres.slice(0, 10).map(g => (
               <button key={g.id} onClick={() => { setSelectedGenre(g.id); setActiveTab('movies'); }} className="flex-shrink-0 px-4 py-2 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#94A3B8] text-[10px] font-bold active:scale-95 transition-all">
                 {g.name}
@@ -446,7 +496,7 @@ export default function App() {
 
         {/* البانر الرئيسي المميز */}
         {isHome && (loading ? <div className="h-[390px] bg-[#111827] rounded-[28px] animate-pulse" /> : featuredItem &&
-          <div className="relative overflow-hidden rounded-[28px] bg-[#111827] border border-[#1E293B] shadow-2xl">
+          <div className="relative overflow-hidden rounded-[28px] bg-[#111827] border border-[#1E293B] shadow-2xl gpu-accelerated">
             <div className="relative h-[390px] w-full">
               <img src={`${BACKDROP_BASE_URL}${featuredItem.backdrop_path || featuredItem.poster_path}`} alt={featuredItem.title || featuredItem.name} className="w-full h-full object-cover" loading="eager" />
               <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(to top,#05070A 0%,rgba(5,7,10,.55) 50%,rgba(5,7,10,.10) 100%)' }} />
@@ -569,6 +619,15 @@ export default function App() {
             <div ref={playerRef}>
               {isWatching ? (
                 <div className="relative w-full aspect-video bg-black flex flex-col rounded-b-2xl overflow-hidden border-b border-[#1E293B] shadow-2xl">
+                  {/* شاشة مؤشر التحميل السلس للسيرفر */}
+                  {iframeLoading && (
+                    <div className="absolute inset-0 z-10 bg-[#05070A] flex flex-col items-center justify-center gap-3">
+                      <div className="w-8 h-8 border-3 border-[#3B82F6] border-t-transparent rounded-full animate-spin" />
+                      <span className="text-xs text-[#94A3B8] font-bold">
+                        {lang === 'ar-SA' ? 'جاري تحميل المشغل...' : 'Loading Player...'}
+                      </span>
+                    </div>
+                  )}
                   <iframe
                     key={`${activeServer.id}-${details?.id}-${selectedSeasonNumber}-${selectedEpisodeNumber}`}
                     src={currentEmbedUrl}
@@ -577,6 +636,7 @@ export default function App() {
                     allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                     allowFullScreen
                     referrerPolicy="no-referrer-when-downgrade"
+                    onLoad={() => setIframeLoading(false)}
                   />
                   <div className="bg-[#0B1220] p-2.5 flex justify-between items-center text-[10px] text-[#94A3B8]">
                     <span>{lang === 'ar-SA' ? 'تواجه مشكلة في المشاهدة؟' : 'Trouble playing?'}</span>
@@ -636,6 +696,7 @@ export default function App() {
                         <button
                           key={srv.id}
                           onClick={() => {
+                            setIframeLoading(true);
                             setActiveServer(srv);
                             setIsWatching(true);
                             setShowServerModal(false);
@@ -661,7 +722,7 @@ export default function App() {
                   <SectionTitle title={lang === 'ar-SA' ? 'المواسم والحلقات' : 'Seasons & Episodes'} icon="📺" />
                   
                   {/* شريط اختيار الموسم */}
-                  <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1">
+                  <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1 gpu-accelerated">
                     {details.seasons.filter(s => s.season_number > 0).map(s => (
                       <button
                         key={s.id}
@@ -763,12 +824,12 @@ export default function App() {
               {details?.credits?.cast?.length > 0 && (
                 <div className="space-y-3 pt-4 border-t border-[#1E293B]">
                   <SectionTitle title={lang === 'ar-SA' ? 'طاقم التمثيل' : 'Cast & Crew'} icon="👥" />
-                  <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2">
+                  <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2 gpu-accelerated">
                     {details.credits.cast.slice(0, 10).map(actor => (
                       <div key={actor.id} className="flex-shrink-0 w-20 text-center space-y-1">
                         <div className="w-16 h-16 mx-auto rounded-full overflow-hidden bg-[#0F172A] border border-[#1E293B]">
                           {actor.profile_path ? (
-                            <img src={`${IMAGE_BASE_URL}${actor.profile_path}`} alt={actor.name} className="w-full h-full object-cover" />
+                            <img src={`${IMAGE_BASE_URL}${actor.profile_path}`} alt={actor.name} className="w-full h-full object-cover" loading="lazy" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-xs text-[#64748B]">👤</div>
                           )}
@@ -826,7 +887,7 @@ const HorizontalSection = memo(function HorizontalSection({ title, icon, items, 
         <SectionTitle title={title} icon={icon} />
         {onViewAll && <button onClick={onViewAll} className="text-[10px] text-[#60A5FA] font-bold hover:underline">{lang === 'ar-SA' ? 'عرض الكل' : 'View All'}</button>}
       </div>
-      <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2">
+      <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2 gpu-accelerated">
         {items.map(item => (
           <div key={item.id} className="flex-shrink-0 w-28">
             <MovieCard item={item} onClick={() => onItemClick(item)} />
