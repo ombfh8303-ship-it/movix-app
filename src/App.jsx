@@ -113,10 +113,6 @@ const WATCH_SERVERS = [
 ];
 
 export default function App() {
-  // حالة شاشة الافتتاحية Splash Screen
-  const [showSplash, setShowSplash] = useState(true);
-  const [splashFading, setSplashFading] = useState(false);
-
   const [activeTab, setActiveTab] = useState('home');
   const [lang, setLang] = useState('ar-SA');
   const [searchQuery, setSearchQuery] = useState('');
@@ -172,22 +168,6 @@ export default function App() {
   const searchTimer = useRef(null);
   const playerRef = useRef(null);
 
-  // التحكم بشاشة الافتتاحية (إخفاء تدريجي بعد 1.8 ثانية)
-  useEffect(() => {
-    const fadeTimer = setTimeout(() => {
-      setSplashFading(true);
-    }, 1500);
-
-    const removeTimer = setTimeout(() => {
-      setShowSplash(false);
-    }, 1800);
-
-    return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(removeTimer);
-    };
-  }, []);
-
   const showToast = useCallback((msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
@@ -195,13 +175,13 @@ export default function App() {
 
   // تحسين التفاعل وقفل التمرير عند فتح القوائم المنبثقة لسلاسة الموقع
   useEffect(() => {
-    if (selectedItem || showFilterModal || showServerModal || trailerKey || showSplash) {
+    if (selectedItem || showFilterModal || showServerModal || trailerKey) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
     }
     return () => { document.body.style.overflow = 'unset'; };
-  }, [selectedItem, showFilterModal, showServerModal, trailerKey, showSplash]);
+  }, [selectedItem, showFilterModal, showServerModal, trailerKey]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -451,61 +431,7 @@ export default function App() {
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .gpu-accelerated { transform: translateZ(0); backface-visibility: hidden; }
-
-        /* حركات شاشة الافتتاحية Splash Screen */
-        @keyframes splashLogoZoom {
-          0% { opacity: 0; transform: scale(0.82); }
-          100% { opacity: 1; transform: scale(1); }
-        }
-        @keyframes splashTextFade {
-          0% { opacity: 0; transform: translateY(10px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes splashBarProgress {
-          0% { width: 0%; opacity: 0.3; }
-          50% { opacity: 1; }
-          100% { width: 100%; opacity: 1; }
-        }
-        .animate-splash-logo { animation: splashLogoZoom 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        .animate-splash-text { animation: splashTextFade 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.25s forwards; opacity: 0; }
-        .animate-splash-bar { animation: splashBarProgress 1.2s ease-in-out 0.35s forwards; }
       `}</style>
-
-      {/* شاشة الافتتاحية (Splash Screen) */}
-      {showSplash && (
-        <div 
-          className={`fixed inset-0 z-[100] bg-[#05070A] flex flex-col items-center justify-center p-4 transition-opacity duration-300 ease-out ${
-            splashFading ? 'opacity-0 pointer-events-none' : 'opacity-100'
-          }`}
-        >
-          <div className="flex flex-col items-center text-center">
-            {/* الشعار بحجم 120px × 120px وتوهج أزرق ناعم */}
-            <div className="relative mb-5 animate-splash-logo">
-              <div className="absolute inset-0 rounded-2xl bg-[#3B82F6] blur-xl opacity-40 animate-pulse" />
-              <img
-                src="/movix-app/1790247122495.png"
-                alt="MOVIX Logo"
-                className="relative w-[120px] h-[120px] rounded-2xl object-cover shadow-2xl border border-white/10"
-              />
-            </div>
-
-            {/* النص MOVIX & Movie Streaming */}
-            <div className="animate-splash-text space-y-1">
-              <h1 className="text-3xl font-black tracking-[0.1em] text-white">
-                MOV<span className="text-[#3B82F6]">IX</span>
-              </h1>
-              <p className="text-[10px] text-[#94A3B8] tracking-[0.25em] uppercase font-semibold">
-                Movie Streaming
-              </p>
-
-              {/* خط تحميل أزرق صغير أسفل النص */}
-              <div className="w-20 h-1 bg-[#1E293B] rounded-full mx-auto mt-4 overflow-hidden">
-                <div className="h-full bg-[#3B82F6] rounded-full animate-splash-bar" />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* التنبيهات العائمة Toast */}
       {toastMessage && (
