@@ -441,19 +441,25 @@ export default function App() {
         </div>
       )}
 
-      {/* الهيدر العلوي */}
+      {/* الهيدر العلوي الجديد */}
       <header className="px-4 pt-5 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setActiveTab('home'); resetFilters(); }}>
-          <div className="w-9 h-9 rounded-xl bg-[#3B82F6] flex items-center justify-center text-white text-sm font-black shadow-lg shadow-[#3B82F6]/30">▶</div>
+          <img
+            src="/movix-app/1790247122495.png"
+            alt="MOVIX"
+            className="w-9 h-9 rounded-xl object-cover shadow-lg shadow-[#3B82F6]/30"
+          />
           <div className="leading-none">
             <span className="text-[19px] font-black tracking-[0.08em] text-white">MOV<span className="text-[#3B82F6]">IX</span></span>
             <p className="text-[7px] text-[#64748B] tracking-[0.22em] mt-1 uppercase">Movie Streaming</p>
           </div>
         </div>
+
         <div className="flex items-center gap-2">
           <button onClick={() => setLang(p => p === 'ar-SA' ? 'en-US' : 'ar-SA')} className="h-9 px-3 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#CBD5E1] text-[10px] font-bold flex items-center gap-1.5 active:scale-95 transition-transform">
             🌐 {lang === 'ar-SA' ? 'EN' : 'العربية'}
           </button>
+
           <button onClick={() => { setTempGenre(selectedGenre); setTempMinRating(minRating); setTempSelectedYear(selectedYear); setShowFilterModal(true); }} className="w-9 h-9 rounded-full bg-[#0F172A] border border-[#1E293B] text-[#CBD5E1] flex items-center justify-center active:scale-95 transition-transform">
             ⚙
           </button>
